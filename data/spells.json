@@ -1,0 +1,162 @@
+{
+  "spells": {
+    "fire": {
+      "name": "Fire",
+      "mp_cost": 5,
+      "type": "attack",
+      "power": 18,
+      "target": "enemy",
+      "description": "Deals fire damage to one enemy"
+    },
+    "fira": {
+      "name": "Fira",
+      "mp_cost": 15,
+      "type": "attack",
+      "power": 40,
+      "target": "enemy",
+      "description": "Deals strong fire damage to one enemy"
+    },
+    "firaga": {
+      "name": "Firaga",
+      "mp_cost": 30,
+      "type": "attack",
+      "power": 80,
+      "target": "enemy",
+      "description": "Deals massive fire damage to one enemy"
+    },
+    "ice": {
+      "name": "Ice",
+      "mp_cost": 5,
+      "type": "attack",
+      "power": 16,
+      "target": "enemy",
+      "description": "Deals ice damage to one enemy"
+    },
+    "blizzara": {
+      "name": "Blizzara",
+      "mp_cost": 15,
+      "type": "attack",
+      "power": 38,
+      "target": "enemy",
+      "description": "Deals strong ice damage to one enemy"
+    },
+    "blizzaga": {
+      "name": "Blizzaga",
+      "mp_cost": 30,
+      "type": "attack",
+      "power": 75,
+      "target": "enemy",
+      "description": "Deals massive ice damage to one enemy"
+    },
+    "thunder": {
+      "name": "Thunder",
+      "mp_cost": 5,
+      "type": "attack",
+      "power": 17,
+      "target": "enemy",
+      "description": "Deals thunder damage to one enemy"
+    },
+    "thundara": {
+      "name": "Thundara",
+      "mp_cost": 15,
+      "type": "attack",
+      "power": 39,
+      "target": "enemy",
+      "description": "Deals strong thunder damage to one enemy"
+    },
+    "thundaga": {
+      "name": "Thundaga",
+      "mp_cost": 30,
+      "type": "attack",
+      "power": 78,
+      "target": "enemy",
+      "description": "Deals massive thunder damage to one enemy"
+    },
+    "cure": {
+      "name": "Cure",
+      "mp_cost": 5,
+      "type": "heal",
+      "power": 30,
+      "target": "ally",
+      "description": "Restores 30 HP to one ally"
+    },
+    "cura": {
+      "name": "Cura",
+      "mp_cost": 12,
+      "type": "heal",
+      "power": 60,
+      "target": "ally",
+      "description": "Restores 60 HP to one ally"
+    },
+    "curaga": {
+      "name": "Curaga",
+      "mp_cost": 25,
+      "type": "heal",
+      "power": 120,
+      "target": "ally",
+      "description": "Restores 120 HP to one ally"
+    },
+    "raise": {
+      "name": "Raise",
+      "mp_cost": 10,
+      "type": "revive",
+      "power": 30,
+      "target": "ally",
+      "description": "Revives an ally with 30 HP"
+    },
+    "arise": {
+      "name": "Arise",
+      "mp_cost": 30,
+      "type": "revive",
+      "power": 100,
+      "target": "ally",
+      "description": "Revives an ally with full HP"
+    },
+    "esuna": {
+      "name": "Esuna",
+      "mp_cost": 8,
+      "type": "cure_status",
+      "power": 0,
+      "target": "ally",
+      "description": "Cures all status ailments"
+    },
+    "protect": {
+      "name": "Protect",
+      "mp_cost": 10,
+      "type": "buff",
+      "power": 0,
+      "target": "ally",
+      "description": "Raises ally's defense"
+    },
+    "shell": {
+      "name": "Shell",
+      "mp_cost": 10,
+      "type": "buff",
+      "power": 0,
+      "target": "ally",
+      "description": "Reduces magic damage to ally"
+    },
+    "haste": {
+      "name": "Haste",
+      "mp_cost": 15,
+      "type": "buff",
+      "power": 0,
+      "target": "ally",
+      "description": "Hastens ally's actions"
+    },
+    "silence": {
+      "name": "Silence",
+      "mp_cost": 8,
+      "type": "debuff",
+      "power": 0,
+      "target": "enemy",
+      "description": "Prevents enemy from casting magic"
+    }
+  },
+  "spell_levels": {
+    "1": ["fire", "ice", "thunder", "cure"],
+    "2": ["fira", "blizzara", "thundara", "cura", "raise", "silence"],
+    "3": ["firaga", "blizzaga", "thundaga", "curaga", "esuna", "protect", "shell", "haste"],
+    "4": ["arise"]
+  }
+}

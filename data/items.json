@@ -1,0 +1,233 @@
+{
+  "items": {
+    "potion": {
+      "name": "Potion",
+      "type": "consumable",
+      "effect": "heal",
+      "value": 30,
+      "description": "Restores 30 HP"
+    },
+    "hi_potion": {
+      "name": "Hi-Potion",
+      "type": "consumable",
+      "effect": "heal",
+      "value": 100,
+      "description": "Restores 100 HP"
+    },
+    "phoenix_down": {
+      "name": "Phoenix Down",
+      "type": "consumable",
+      "effect": "revive",
+      "value": 50,
+      "description": "Revives with 50 HP"
+    },
+    "antidote": {
+      "name": "Antidote",
+      "type": "consumable",
+      "effect": "cure_status",
+      "value": "poison",
+      "description": "Cures poison"
+    },
+    "echo_screen": {
+      "name": "Echo Screen",
+      "type": "consumable",
+      "effect": "cure_status",
+      "value": "silence",
+      "description": "Cures silence"
+    },
+    "eye_drops": {
+      "name": "Eye Drops",
+      "type": "consumable",
+      "effect": "cure_status",
+      "value": "blind",
+      "description": "Cures blind"
+    },
+    "gold_needle": {
+      "name": "Gold Needle",
+      "type": "consumable",
+      "effect": "cure_status",
+      "value": "petrify",
+      "description": "Cures petrification"
+    },
+    "tent": {
+      "name": "Tent",
+      "type": "consumable",
+      "effect": "restore_all",
+      "value": 0,
+      "description": "Restores all HP and MP"
+    },
+    "ether": {
+      "name": "Ether",
+      "type": "consumable",
+      "effect": "mana",
+      "value": 20,
+      "description": "Restores 20 MP"
+    },
+    "elixir": {
+      "name": "Elixir",
+      "type": "consumable",
+      "effect": "full_restore",
+      "value": 0,
+      "description": "Fully restores HP and MP"
+    }
+  },
+  "weapons": {
+    "wooden_sword": {
+      "name": "Wooden Sword",
+      "type": "weapon",
+      "atk": 5,
+      "description": "A basic wooden sword"
+    },
+    "iron_sword": {
+      "name": "Iron Sword",
+      "type": "weapon",
+      "atk": 12,
+      "description": "A sturdy iron sword"
+    },
+    "steel_sword": {
+      "name": "Steel Sword",
+      "type": "weapon",
+      "atk": 20,
+      "description": "A finely crafted steel sword"
+    },
+    "silver_sword": {
+      "name": "Silver Sword",
+      "type": "weapon",
+      "atk": 28,
+      "description": "A sword blessed with silver"
+    },
+    "fire_sword": {
+      "name": "Fire Sword",
+      "type": "weapon",
+      "atk": 35,
+      "description": "A sword imbued with fire"
+    },
+    "wooden_staff": {
+      "name": "Wooden Staff",
+      "type": "weapon",
+      "atk": 3,
+      "mag": 5,
+      "description": "A basic wooden staff"
+    },
+    "iron_staff": {
+      "name": "Iron Staff",
+      "type": "weapon",
+      "atk": 4,
+      "mag": 12,
+      "description": "An iron staff with magical affinity"
+    },
+    "mystic_staff": {
+      "name": "Mystic Staff",
+      "type": "weapon",
+      "atk": 5,
+      "mag": 25,
+      "description": "A staff of great magical power"
+    },
+    "shortbow": {
+      "name": "Shortbow",
+      "type": "weapon",
+      "atk": 8,
+      "description": "A simple shortbow"
+    },
+    "longbow": {
+      "name": "Longbow",
+      "type": "weapon",
+      "atk": 15,
+      "description": "A well-crafted longbow"
+    },
+    "dagger": {
+      "name": "Dagger",
+      "type": "weapon",
+      "atk": 7,
+      "description": "A small, quick dagger"
+    },
+    "stealth_dagger": {
+      "name": "Stealth Dagger",
+      "type": "weapon",
+      "atk": 14,
+      "description": "A dagger for stealthy attacks"
+    }
+  },
+  "armor": {
+    "leather_armor": {
+      "name": "Leather Armor",
+      "type": "armor",
+      "def": 3,
+      "description": "Basic leather protection"
+    },
+    "iron_armor": {
+      "name": "Iron Armor",
+      "type": "armor",
+      "def": 8,
+      "description": "Solid iron armor"
+    },
+    "steel_armor": {
+      "name": "Steel Armor",
+      "type": "armor",
+      "def": 15,
+      "description": "Reinforced steel armor"
+    },
+    "silver_armor": {
+      "name": "Silver Armor",
+      "type": "armor",
+      "def": 22,
+      "description": "Armor blessed with silver"
+    },
+    "mage_robe": {
+      "name": "Mage Robe",
+      "type": "armor",
+      "def": 2,
+      "mag": 5,
+      "description": "A robe for aspiring mages"
+    },
+    "wizard_robe": {
+      "name": "Wizard Robe",
+      "type": "armor",
+      "def": 3,
+      "mag": 15,
+      "description": "A robe of great magical power"
+    },
+    "leather_shield": {
+      "name": "Leather Shield",
+      "type": "shield",
+      "def": 2,
+      "description": "A basic leather shield"
+    },
+    "iron_shield": {
+      "name": "Iron Shield",
+      "type": "shield",
+      "def": 5,
+      "description": "A sturdy iron shield"
+    },
+    "steel_shield": {
+      "name": "Steel Shield",
+      "type": "shield",
+      "def": 10,
+      "description": "A reinforced steel shield"
+    },
+    "leather_helm": {
+      "name": "Leather Helm",
+      "type": "helm",
+      "def": 1,
+      "description": "A basic leather helmet"
+    },
+    "iron_helm": {
+      "name": "Iron Helm",
+      "type": "helm",
+      "def": 4,
+      "description": "A sturdy iron helmet"
+    },
+    "steel_helm": {
+      "name": "Steel Helm",
+      "type": "helm",
+      "def": 8,
+      "description": "A finely crafted steel helmet"
+    },
+    "silver_helm": {
+      "name": "Silver Helm",
+      "type": "helm",
+      "def": 12,
+      "description": "A helm blessed with silver"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "enemies": {
+    "goblin": {
+      "name": "Goblin",
+      "hp": 20,
+      "hp_max": 20,
+      "atk": 5,
+      "def": 2,
+      "spd": 6,
+      "xp": 10,
+      "gold": 5
+    },
+    "skeleton": {
+      "name": "Skeleton",
+      "hp": 30,
+      "hp_max": 30,
+      "atk": 8,
+      "def": 4,
+      "spd": 5,
+      "xp": 20,
+      "gold": 12
+    },
+    "slime": {
+      "name": "Slime",
+      "hp": 12,
+      "hp_max": 12,
+      "atk": 3,
+      "def": 1,
+      "spd": 4,
+      "xp": 5,
+      "gold": 3
+    },
+    "wolf": {
+      "name": "Wolf",
+      "hp": 25,
+      "hp_max": 25,
+      "atk": 7,
+      "def": 3,
+      "spd": 9,
+      "xp": 15,
+      "gold": 8
+    },
+    "imp": {
+      "name": "Imp",
+      "hp": 18,
+      "hp_max": 18,
+      "atk": 6,
+      "def": 2,
+      "spd": 8,
+      "xp": 12,
+      "gold": 7
+    },
+    "mage": {
+      "name": "Dark Mage",
+      "hp": 35,
+      "hp_max": 35,
+      "atk": 12,
+      "def": 5,
+      "spd": 7,
+      "xp": 35,
+      "gold": 25
+    }
+  },
+  "encounters": {
+    "overworld_1": ["goblin", "slime", "wolf"],
+    "overworld_2": ["slime", "goblin", "goblin"],
+    "overworld_3": ["wolf", "imp"],
+    "town_1": [],
+    "dungeon_1": ["skeleton", "goblin", "skeleton", "mage"]
+  }
+}
