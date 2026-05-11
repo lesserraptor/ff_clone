@@ -130,11 +130,11 @@ class OverworldScene:
     def check_exits(self):
         for exit_data in self.map_data.get("exits", []):
             if self.player_tile_x == exit_data["x"] and self.player_tile_y == exit_data["y"]:
-                target = exit_data.get("to_map")
+                target = exit_data.get("dest_map")
                 if target:
                     self.engine.current_map = target
-                    self.engine.player_x = exit_data.get("to_x", 7)
-                    self.engine.player_y = exit_data.get("to_y", 5)
+                    self.engine.player_x = exit_data.get("dest_x", 7)
+                    self.engine.player_y = exit_data.get("dest_y", 5)
                     self.load_map(target)
                 break
 

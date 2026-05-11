@@ -76,6 +76,7 @@ class MenuScene:
             self.sel_item = 0
         elif name == "MAGIC":
             self.sel_char = 0
+            self.sel_spell = 0
         elif name == "EQUIP":
             self.sel_char = 0
             self.sel_slot = 0
