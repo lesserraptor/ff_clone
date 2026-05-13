@@ -2,7 +2,7 @@ import arcade
 from game.input import UP, DOWN, LEFT, RIGHT, Z, X
 from game.engine import register_scene, get_item
 from game.text import create_text
-from game.ui import COLORS, draw_window
+from game.ui import COLORS, draw_window, draw_cursor
 
 
 @register_scene("menu")
@@ -292,27 +292,39 @@ class MenuScene:
         self._prev_scale = scale
 
     def draw_main(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
+        box_w = 80 * scale
+        box_h = 80 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
         font_size = int(8 * scale)
         for i, opt in enumerate(self.main_options):
-            y = h // 2 + (2 - i) * 16 * scale
+            y = box_y + box_h // 2 + (2 - i) * 12 * scale
             color = COLORS["cursor"] if i == self.sel_main else COLORS["text"]
-            self.draw_text(opt, 32 * scale, y, color, font_size)
-        self.draw_text(f"GP: {self.engine.gold}", 16 * scale, h - 16 * scale, (255, 215, 0), font_size)
+            self.draw_text(opt, box_x + 12 * scale, y, color, font_size)
+            if i == self.sel_main:
+                draw_cursor(box_x + 4 * scale, y, scale)
+        self.draw_text(f"GP: {self.engine.gold}", box_x + 8 * scale, box_y + 8 * scale, (255, 215, 0), font_size)
 
     def draw_status(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
+        box_w = 100 * scale
+        box_h = 90 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
         font_size = int(6 * scale)
-        self.draw_text("STATUS", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        self.draw_text("STATUS", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         for i, member in enumerate(self.engine.party):
-            y = h - 32 * scale - i * 20 * scale
+            y = box_y + box_h - 28 * scale - i * 16 * scale
             color = COLORS["cursor"] if i == self.sel_char else (150, 150, 150)
             alive = member.get("hp", 0) > 0
             if not alive:
                 color = (100, 100, 100)
-            self.draw_text(f"{member['name']}  LV{member.get('lvl', 1)}", 24 * scale, y, color, font_size)
-            self.draw_text(f"HP {member.get('hp', 0)}/{member.get('hp_max', 0)}", w - 80 * scale, y, (0, 200, 0) if alive else (100, 100, 100), font_size)
-        self.draw_text("[Z] Select  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+            if i == self.sel_char:
+                draw_cursor(box_x + 8 * scale, y, scale)
+            self.draw_text(f"{member['name']}  LV{member.get('lvl', 1)}", box_x + 16 * scale, y, color, font_size)
+            self.draw_text(f"HP {member.get('hp', 0)}/{member.get('hp_max', 0)}", box_x + box_w - 24 * scale, y, (0, 200, 0) if alive else (100, 100, 100), font_size)
+        self.draw_text("[Z] Select  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_status_char(self, w, h, scale):
         member = self.engine.party[self.sel_char]
@@ -333,22 +345,28 @@ class MenuScene:
         self.draw_text("[X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_items(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
-        self.draw_text("ITEMS", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        box_w = 140 * scale
+        box_h = 100 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
+        self.draw_text("ITEMS", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         items = self.engine.inventory
         if not items:
             self.draw_text("No items", w // 2, h // 2, (150, 150, 150), int(8 * scale), center=True)
         else:
             font_size = int(6 * scale)
-            for i, entry in enumerate(items):
-                y = h - 36 * scale - i * 12 * scale
+            for i, entry in enumerate(items[:6]):
+                y = box_y + box_h - 28 * scale - i * 12 * scale
                 color = COLORS["cursor"] if i == self.sel_item else COLORS["text"]
                 item_def = get_item(entry["id"])
                 name = item_def["name"] if item_def else entry["id"]
-                self.draw_text(f"{name} x{entry['qty']}", 24 * scale, y, color, font_size)
+                if i == self.sel_item:
+                    draw_cursor(box_x + 8 * scale, y, scale)
+                self.draw_text(f"{name} x{entry['qty']}", box_x + 16 * scale, y, color, font_size)
                 if item_def:
-                    self.draw_text(item_def.get("description", ""), 120 * scale, y, (150, 150, 150), int(5 * scale))
-        self.draw_text("[Z] Use  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+                    self.draw_text(item_def.get("description", ""), box_x + 70 * scale, y, (150, 150, 150), int(5 * scale))
+        self.draw_text("[Z] Use  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_items_use(self, w, h, scale):
         entry = self.engine.inventory[self.sel_item]
@@ -365,8 +383,12 @@ class MenuScene:
         self.draw_text("[Z] Use  [X] Cancel", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_magic(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
-        self.draw_text("MAGIC", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        box_w = 140 * scale
+        box_h = 100 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
+        self.draw_text("MAGIC", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         font_size = int(6 * scale)
         casters = [i for i, p in enumerate(self.engine.party) if p.get("spells")]
         if not casters:
@@ -374,70 +396,88 @@ class MenuScene:
         else:
             char_idx = casters[self.sel_char]
             member = self.engine.party[char_idx]
-            self.draw_text(f"{member['name']}  MP {member.get('mp', 0)}/{member.get('mp_max', 0)}", 24 * scale, h - 30 * scale, (100, 200, 255), font_size)
+            self.draw_text(f"{member['name']}  MP {member.get('mp', 0)}/{member.get('mp_max', 0)}", box_x + 16 * scale, box_y + box_h - 24 * scale, (100, 200, 255), font_size)
             spells = member.get("spells", [])
-            for i, sid in enumerate(spells):
+            for i, sid in enumerate(spells[:5]):
                 sdef = get_item(sid)
                 name = sdef["name"] if sdef else sid
                 mp_cost = sdef.get("mp_cost", 0) if sdef else 0
-                y = h - 44 * scale - i * 12 * scale
+                y = box_y + box_h - 36 * scale - i * 12 * scale
                 color = COLORS["cursor"] if i == self.sel_spell else COLORS["text"]
                 can_cast = member.get("mp", 0) >= mp_cost
                 if not can_cast:
                     color = (80, 80, 80)
-                self.draw_text(f"{name}  MP-{mp_cost}", 32 * scale, y, color, font_size)
+                if i == self.sel_spell:
+                    draw_cursor(box_x + 12 * scale, y, scale)
+                self.draw_text(f"{name}  MP-{mp_cost}", box_x + 20 * scale, y, color, font_size)
                 if sdef:
-                    self.draw_text(sdef.get("description", ""), 110 * scale, y, (150, 150, 150), int(5 * scale))
-            if self.state == "magic_cast":
-                pass
-        self.draw_text("[Z] Select  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+                    self.draw_text(sdef.get("description", ""), box_x + 70 * scale, y, (150, 150, 150), int(5 * scale))
+        self.draw_text("[Z] Select  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_equip(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
-        self.draw_text("EQUIP", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        box_w = 120 * scale
+        box_h = 80 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
+        self.draw_text("EQUIP", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         font_size = int(6 * scale)
         for i, member in enumerate(self.engine.party):
-            y = h - 32 * scale - i * 20 * scale
+            y = box_y + box_h - 28 * scale - i * 16 * scale
             color = COLORS["cursor"] if i == self.sel_char else (150, 150, 150)
-            self.draw_text(f"{member['name']}", 24 * scale, y, color, font_size)
+            if i == self.sel_char:
+                draw_cursor(box_x + 8 * scale, y, scale)
+            self.draw_text(f"{member['name']}", box_x + 16 * scale, y, color, font_size)
             wpn = get_item(member.get("weapon"))
             arm = get_item(member.get("armor"))
-            self.draw_text(f"W:{wpn['name'] if wpn else 'None'}  A:{arm['name'] if arm else 'None'}", 24 * scale, y - 10 * scale, (150, 150, 150), font_size)
-        self.draw_text("[Z] Select  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+            self.draw_text(f"W:{wpn['name'] if wpn else 'None'}  A:{arm['name'] if arm else 'None'}", box_x + 16 * scale, y - 8 * scale, (150, 150, 150), font_size)
+            self.draw_text("[Z] Select  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_equip_slot(self, w, h, scale):
         member = self.engine.party[self.sel_char]
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
-        self.draw_text(f"Equip: {member['name']}", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        box_w = 100 * scale
+        box_h = 80 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
+        self.draw_text(f"Equip: {member['name']}", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         slots = ["WEAPON", "ARMOR", "HELM", "SHIELD"]
         slot_keys = ["weapon", "armor", "helm", "shield"]
         font_size = int(6 * scale)
         for i, slot_name in enumerate(slots):
-            y = h - 36 * scale - i * 16 * scale
+            y = box_y + box_h - 28 * scale - i * 14 * scale
             color = COLORS["cursor"] if i == self.sel_slot else COLORS["text"]
+            if i == self.sel_slot:
+                draw_cursor(box_x + 8 * scale, y, scale)
             curr = get_item(member.get(slot_keys[i]))
-            self.draw_text(f"{slot_name}: {curr['name'] if curr else 'None'}", 24 * scale, y, color, font_size)
-        self.draw_text("[Z] Change  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+            self.draw_text(f"{slot_name}: {curr['name'] if curr else 'None'}", box_x + 16 * scale, y, color, font_size)
+        self.draw_text("[Z] Change  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_save(self, w, h, scale):
-        self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
-        self.draw_text("SAVE GAME", w // 2, h - 20 * scale, COLORS["text"], int(8 * scale), center=True)
+        box_w = 100 * scale
+        box_h = 100 * scale
+        box_x = w // 2 - box_w // 2
+        box_y = h // 2 - box_h // 2
+        self.draw_box(box_x, box_x + box_w, box_y, box_y + box_h, scale)
+        self.draw_text("SAVE GAME", w // 2, box_y + box_h - 12 * scale, COLORS["text"], int(8 * scale), center=True)
         font_size = int(6 * scale)
         from game.save import has_save, get_all_saves
         saves = get_all_saves()
-        for i in range(5):
+        for i in range(4):
             exists = any(s["slot"] == i for s in saves)
-            y = h - 40 * scale - i * 16 * scale
+            y = box_y + box_h - 28 * scale - i * 14 * scale
             color = COLORS["cursor"] if i == self.sel_slot else (150, 150, 150)
+            if i == self.sel_slot:
+                draw_cursor(box_x + 8 * scale, y, scale)
             if exists:
                 for s in saves:
                     if s["slot"] == i:
-                        self.draw_text(f"Slot {i + 1}: {s['name']}", 24 * scale, y, color, font_size)
-                        self.draw_text(f"Play: {int(s['play_time'])}s", 130 * scale, y, (150, 150, 150), int(5 * scale))
+                        self.draw_text(f"Slot {i + 1}: {s['name']}", box_x + 16 * scale, y, color, font_size)
+                        self.draw_text(f"Play: {int(s['play_time'])}s", box_x + box_w - 16 * scale, y, (150, 150, 150), int(5 * scale))
                         break
             else:
-                self.draw_text(f"Slot {i + 1}: [Empty]", 24 * scale, y, color, font_size)
-        self.draw_text("[Z] Save  [X] Back", w // 2, 16 * scale, (150, 150, 150), int(5 * scale), center=True)
+                self.draw_text(f"Slot {i + 1}: [Empty]", box_x + 16 * scale, y, color, font_size)
+        self.draw_text("[Z] Save  [X] Back", w // 2, box_y + 12 * scale, (150, 150, 150), int(5 * scale), center=True)
 
     def draw_load(self, w, h, scale):
         self.draw_box(16 * scale, w - 16 * scale, 16 * scale, h - 16 * scale, scale)
@@ -448,6 +488,9 @@ class MenuScene:
         for i in range(5):
             exists = any(s["slot"] == i for s in saves)
             y = h - 40 * scale - i * 16 * scale
+            color = COLORS["cursor"] if i == self.sel_slot and exists else (150, 150, 150)
+            if i == self.sel_slot and exists:
+                draw_cursor(20 * scale, y, scale)
             color = COLORS["cursor"] if i == self.sel_slot and exists else (150, 150, 150)
             if exists:
                 for s in saves:

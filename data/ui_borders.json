@@ -1,0 +1,44 @@
+{
+  "colors": {
+    "w": "light",
+    "g": "mid",
+    "b": "dark",
+    "t": "transparent"
+  },
+  "top_left": [
+    "ttttbb",
+    "ttbbgg",
+    "tbgwww",
+    "tbwwgg",
+    "bgwggb",
+    "bgwgbb"
+  ],
+  "top_right": [
+    "bbtttt",
+    "ggbbtt",
+    "wwwgbt",
+    "ggwwbt",
+    "bggwgb",
+    "bbgwgb"
+  ],
+  "bot_left": [
+    "bgwgbb",
+    "bgwggb",
+    "tbwwgg",
+    "tbgwww",
+    "ttbbgg",
+    "ttttbb"
+  ],
+  "bot_right": [
+    "bbgwgb",
+    "bggwgb",
+    "ggwwbt",
+    "wwwgbt",
+    "ggbbtt",
+    "bbtttt"
+  ],
+  "top_border": ["b", "g", "w", "w", "g", "b"],
+  "bot_border": ["b", "g", "w", "w", "g", "b"],
+  "left_edge": "bgwgbt",
+  "right_edge": "tbgwgb"
+}

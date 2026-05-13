@@ -2,7 +2,7 @@ import arcade
 from game.battle.model import BattleModel
 from game.battle.dataclasses import BattleEvent, ActionType
 from game.text import create_text
-from game.ui import COLORS, draw_window, draw_hp_bar, draw_mp_bar
+from game.ui import COLORS, draw_window, draw_hp_bar, draw_mp_bar, draw_cursor
 
 
 class BattleRenderer:
@@ -116,11 +116,16 @@ class BattleRenderer:
             self._get_text_simple(self._hp_texts, f"{i}_name", member.name, x + 4 * scale, y + box_h - 8 * scale, alive_color, font_size)
             self._hp_texts[self._prev_scale][f"{i}_name"].draw()
             
-            self._get_text_simple(self._hp_texts, f"{i}_hp", f"HP {member.hp}/{member.hp_max}", x + 4 * scale, y + 4 * scale, alive_color, font_size)
+            bar_y = y + 4 * scale
+            bar_width = box_w - 16 * scale
+            draw_hp_bar(member.hp, member.hp_max, x + 4 * scale, bar_y, scale, width=bar_width, height=3 * scale)
+            self._get_text_simple(self._hp_texts, f"{i}_hp", f"{member.hp}/{member.hp_max}", x + box_w - 8 * scale, bar_y + 2 * scale, alive_color, font_size - 1)
             self._hp_texts[self._prev_scale][f"{i}_hp"].draw()
             
             if member.mp_max > 0:
-                self._get_text_simple(self._hp_texts, f"{i}_mp", f"MP {member.mp}/{member.mp_max}", x + 4 * scale, y + 10 * scale, mp_color, font_size)
+                mp_bar_y = bar_y + 6 * scale
+                draw_mp_bar(member.mp, member.mp_max, x + 4 * scale, mp_bar_y, scale, width=bar_width, height=3 * scale)
+                self._get_text_simple(self._hp_texts, f"{i}_mp", f"{member.mp}/{member.mp_max}", x + box_w - 8 * scale, mp_bar_y + 2 * scale, mp_color, font_size - 1)
                 self._hp_texts[self._prev_scale][f"{i}_mp"].draw()
 
     def draw_command_bar(self, w: int, h: int, scale: float, options: list, selection: int):
@@ -172,6 +177,8 @@ class BattleRenderer:
             y = box_y + box_h - 24 * scale - i * 12 * scale
             can_cast = member.mp >= mp_cost
             color = COLORS["cursor"] if i == selection else (COLORS["text"] if can_cast else (100, 100, 100))
+            if i == selection:
+                draw_cursor(24 * scale, y, scale)
             text = self._get_text_simple(self._spell_texts, i, f"{name}  MP-{mp_cost}", 32 * scale, y, color, font_size)
             text.draw()
 

@@ -127,7 +127,8 @@ The battle renderer currently uses `arcade.Text()` directly without specifying `
 
 **Implementation:**
 
-Create `game/ui.py`:
+Create `game/ui.py` with pixellated border following FF Legend II style:
+
 ```python
 COLORS = {
     "box_fill": (48, 48, 160),
@@ -141,7 +142,7 @@ COLORS = {
 }
 
 def draw_window(x, y, w, h, scale, fill_color=None, border_color=None):
-    """Draw blue box with gray border (1px)"""
+    """Draw blue box with pixellated 3D border"""
 
 def draw_cursor(x, y, scale, color=None):
     """Draw yellow triangle cursor"""
@@ -152,6 +153,19 @@ def draw_hp_bar(current, max_val, x, y, scale, width=None, height=None):
 def draw_mp_bar(current, max_val, x, y, scale, width=None, height=None):
     """Draw MP bar (blue fill, border)"""
 ```
+
+**Border Implementation Details:**
+
+The border data is loaded from `data/ui_borders.json` at runtime, allowing style changes without code edits.
+
+The JSON defines:
+- **Corners:** 6x6 pixel patterns (top_left, top_right, bot_left, bot_right)
+- **Top/bottom edges:** 6 rows of solid colors (top_border, bot_border)
+- **Left/right edges:** 6-character strings (left_edge, right_edge)
+
+Each character maps to: w=light, g=mid, b=dark, t=transparent.
+
+See `plan/menu_border_desc.md` for the default pixel patterns and `data/ui_borders.json` for the actual data.
 
 **Updated Renderers:**
 
@@ -265,7 +279,7 @@ Create `game/tiles.py` and `game/tilemap.py` for tile rendering.
 |-----------|--------|-----------|----------------|
 | 1.1 | COMPLETED | `game/text.py`, `game/ui.py` | `game/engine.py`, `game/scenes/title.py` |
 | 1.2 | COMPLETED | - | `game/battle/renderer.py`, `game/scenes/menu.py`, `game/scenes/overworld.py` |
-| 1.3 | NOT STARTED | - | - |
+| 1.3 | COMPLETED | - | `game/ui.py`, `game/scenes/menu.py` |
 
 ---
 
