@@ -78,7 +78,7 @@ class BattleRenderer:
 
     def draw_enemy_area(self, model: BattleModel, w: int, h: int, scale: float):
         area_top = h * 3 // 4
-        arcade.draw_lrbt_rectangle_filled(0, w, h // 4, area_top, (60, 0, 0))
+        draw_window(0, h // 4, w, area_top - h // 4, scale, (60, 0, 0))
         
         enemies = model.enemies
         enemy_count = len(enemies)
@@ -98,7 +98,7 @@ class BattleRenderer:
 
     def draw_party_area(self, model: BattleModel, w: int, h: int, scale: float):
         area_bottom = h // 4
-        arcade.draw_lrbt_rectangle_filled(0, w, 0, area_bottom, (0, 0, 60))
+        draw_window(0, 0, w, area_bottom, scale, (0, 0, 60))
         
         box_w = w // 4 - 4 * scale
         box_h = area_bottom - 8 * scale
@@ -108,7 +108,7 @@ class BattleRenderer:
             x = 8 * scale + col * (box_w + 4 * scale)
             y = 4 * scale
             color = arcade.color.GREEN if member.alive else (120, 120, 120)
-            arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, color, int(scale))
+            arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, color[:3], int(scale))
             
             font_size = int(5 * scale)
             alive_color = arcade.color.WHITE if member.alive else (120, 120, 120)
@@ -130,7 +130,7 @@ class BattleRenderer:
 
     def draw_command_bar(self, w: int, h: int, scale: float, options: list, selection: int):
         cmd_h = h // 4
-        arcade.draw_lrbt_rectangle_filled(0, w, 0, cmd_h, (30, 30, 30))
+        draw_window(0, 0, w, cmd_h, scale, (30, 30, 30))
         
         for i, option in enumerate(options):
             x = 24 * scale + i * 48 * scale
@@ -156,12 +156,12 @@ class BattleRenderer:
         spells = member.spells
         
         spell_h = h // 4
-        arcade.draw_lrbt_rectangle_filled(0, w, spell_h, spell_h + 40 * scale, (20, 20, 40))
+        draw_window(0, spell_h, w, 40 * scale, scale, (20, 20, 40))
         box_x = 16 * scale
         box_w = w - 32 * scale
         box_y = spell_h + 4 * scale
         box_h = 32 * scale
-        arcade.draw_lrbt_rectangle_outline(box_x, box_x + box_w, box_y, box_y + box_h, (100, 200, 255), int(scale))
+        draw_window(box_x, box_y, box_w, box_h, scale, (20, 20, 40), (100, 200, 255))
         
         font_size = int(6 * scale)
         if self._mp_text is None or self._prev_scale != scale:
@@ -271,8 +271,7 @@ class BattleRenderer:
         box_h = 40 * scale
         bx = 16 * scale
         by = h // 2 - box_h // 2
-        arcade.draw_lrbt_rectangle_filled(bx, bx + box_w, by, by + box_h, (0, 0, 0))
-        arcade.draw_lrbt_rectangle_outline(bx, bx + box_w, by, by + box_h, color, int(scale))
+        draw_window(bx, by, box_w, box_h, scale, (0, 0, 0), color)
         if self._centered_text is None or self._prev_scale != scale:
             self._centered_text = create_text(text, w // 2, h // 2, color, int(8 * scale), anchor_x="center", anchor_y="center")
         else:
