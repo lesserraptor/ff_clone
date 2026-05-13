@@ -1,0 +1,49 @@
+{
+  "sheets": {
+    "enemies": "Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png"
+  },
+  "sprites": {
+    "goblin": {
+      "sheet": "enemies",
+      "x": 124,
+      "y": 117,
+      "w": 49,
+      "h": 48
+    },
+    "skeleton": {
+      "sheet": "enemies",
+      "x": 237,
+      "y": 117,
+      "w": 47,
+      "h": 48
+    },
+    "slime": {
+      "sheet": "enemies",
+      "x": 85,
+      "y": 21,
+      "w": 32,
+      "h": 32
+    },
+    "wolf": {
+      "sheet": "enemies",
+      "x": 68,
+      "y": 117,
+      "w": 49,
+      "h": 48
+    },
+    "imp": {
+      "sheet": "enemies",
+      "x": 645,
+      "y": 4,
+      "w": 32,
+      "h": 49
+    },
+    "dark_mage": {
+      "sheet": "enemies",
+      "x": 405,
+      "y": 117,
+      "w": 48,
+      "h": 48
+    }
+  }
+}

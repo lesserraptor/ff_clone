@@ -204,48 +204,83 @@ def _get_text(self, key, text, x, y, color, size, anchor_x="left", anchor_y="cen
 
 **Purpose:** Load and display sprite sheets with a data-driven approach.
 
+**Key Learning:** Sprites have variable sizes (not fixed 16x16). Arcade's SpriteList has a texture atlas limitation requiring each sprite to be preloaded as an independent texture.
+
 **Assets:**
 
 | Asset | File | Size | Notes |
 |-------|------|------|-------|
-| Characters | `assets/Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Characters - Characters.png` | 465×718, 16×16 | Multiple poses/directions |
-| Enemies | `assets/Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png` | 802×274, 16×16 | ~50 per row, 2 rows |
+| Characters | `assets/Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Characters - Characters.png` | 465×718 | Multiple poses/directions |
+| Enemies | `assets/Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png` | 802×274 | Variable size sprites |
 
 **Implementation:**
+
+Create `tools/sprite_picker.py` - Interactive tool for picking sprite regions from sheets:
+- Zoom (scroll wheel), Pan (middle-click drag or arrows)
+- Left-click drag to select region
+- Enter to save with name to JSON
+- Tab to switch between loaded sheets
 
 Create `game/sprites.py`:
 ```python
 class SpriteAtlas:
-    def __init__(self, sheet_path):
-        self.sheet = arcade.load_texture(sheet_path)
-        self.sprites = {}
-        
+    def __init__(self, assets_path=None):
+        self.sheets = {}      # name -> arcade.Texture (full sheet)
+        self.definitions = {} # sprite_id -> {sheet, x, y, w, h}
+        self.sprite_textures = {} # sprite_id -> arcade.Texture (preloaded)
+
     def load_definitions(self, json_path):
-        """Load sprite definitions from JSON"""
-        
-    def draw(self, sprite_id, x, y, scale, **kwargs):
-        """Draw sprite by ID"""
+        """Load sheet references and sprite definitions from JSON"""
+        # Loads sheets, then preloads each sprite as independent texture
+        # (workaround for arcade SpriteList atlas limitation)
+
+    def draw(self, sprite_id, x, y, scale):
+        """Draw sprite by ID using arcade.Sprite + SpriteList"""
+```
+
+Create `data/sprites.json`:
+```json
+{
+  "sheets": {
+    "enemies": "Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png"
+  },
+  "sprites": {
+    "goblin": {"sheet": "enemies", "x": 124, "y": 117, "w": 49, "h": 48},
+    ...
+  }
+}
 ```
 
 ### 2.2 Enemy Sprite Mapping
 
-**Enemies sheet layout (802×274, 16×16 sprites):**
-- ~50 sprites per row
-- Two rows (top: enemies, bottom: bosses/variants)
-- Positions need manual identification
+**Enemies sheet layout (802×274):**
+- Variable size sprites across two rows
+- Positions identified using sprite picker tool
 
 **Mapping process:**
-1. Start with one placeholder sprite
-2. Game runs, user sees it
-3. Adjust coordinates until correct
-4. Repeat for other enemies
+1. Run `tools/sprite_picker.py`
+2. Zoom in on target sprite area
+3. Left-click drag to select the sprite region
+4. Press Enter, type sprite name (e.g., "goblin", "dark_mage")
+5. Repeat for all enemies in `data/enemies.json`
 
-### 2.3 Character Sprite Mapping
+**Sprite ID mapping:**
+- Enemy name "Goblin" → sprite_id "goblin"
+- Enemy name "Dark Mage" → sprite_id "dark_mage"
+- (lowercase, underscores for spaces)
+
+### 2.3 Character Sprite Mapping (PENDING)
+
+**Character sheet:** 465×718, multiple poses/directions per character
 
 **Mapping process:**
-1. Start with placeholder (first sprite)
-2. Verify in-game
-3. Adjust with user guidance
+1. Run `tools/sprite_picker.py` with characters sheet loaded (Tab)
+2. Identify sprite positions for each character class
+3. Add definitions to `data/sprites.json`
+4. Update `game/scenes/overworld.py` to draw characters as sprites
+
+**Todo:**
+- Map character classes (warrior, mage, etc.) with idle/attack poses
 
 ### 2.4 Updating Renderers
 
@@ -283,6 +318,15 @@ Create `game/tiles.py` and `game/tilemap.py` for tile rendering.
 
 ---
 
+## Phase 2: Sprites
+
+| Sub-Phase | Status | New Files | Modified Files |
+|-----------|--------|-----------|----------------|
+| 2.1 | COMPLETED | `tools/sprite_picker.py`, `game/sprites.py`, `data/sprites.json` | - |
+| 2.2 | COMPLETED | `tools/sprite_picker.py`, `game/sprites.py`, `data/sprites.json` | `game/battle/renderer.py` |
+
+---
+
 ## Technical Notes
 
 ### Font Registration (Critical)
@@ -304,6 +348,69 @@ font = pyglet.font.load('Final Fantasy IV (Japan only)')
 ```
 
 This name comes from the font file's metadata, not the filename.
+
+---
+
+## Sprite System Technical Notes
+
+### Sprite Preloading (Arcade Limitation)
+
+Arcade's SpriteList uses a texture atlas internally. Cropping the same sheet multiple times causes "texture not found in UVData" errors because all cropped textures share the same atlas reference.
+
+**Workaround**: Extract each sprite region into a fully independent texture:
+
+```python
+def _preload_sprites(self):
+    for sprite_id, sprite_def in self.definitions.items():
+        cropped = sheet.crop(sx, sy, sw, sh)
+        img = cropped.image
+
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+
+        self.sprite_textures[sprite_id] = arcade.load_texture(buf)
+```
+
+This is less memory-efficient than true sprite sheet reuse, but avoids the atlas conflict.
+
+### Drawing Method
+
+Use `arcade.Sprite` with `SpriteList` instead of direct texture drawing:
+
+```python
+sprite = arcade.Sprite()
+sprite.texture = texture
+sprite.center_x = x
+sprite.center_y = y
+sprite.scale = scale
+
+sprite_list = arcade.SpriteList()
+sprite_list.append(sprite)
+sprite_list.draw()
+```
+
+### Sprite Definitions
+
+Sprite IDs map to enemy names (lowercase, underscores for spaces):
+- "Goblin" → "goblin"
+- "Dark Mage" → "dark_mage"
+
+Each definition includes variable w/h (not fixed 16x16):
+```json
+{
+  "goblin": {"sheet": "enemies", "x": 124, "y": 117, "w": 49, "h": 48}
+}
+```
+
+### Sprite Picker Tool
+
+`tools/sprite_picker.py` - Interactive tool for picking sprite regions:
+- Zoom: scroll wheel (1x to 20x)
+- Pan: middle-click drag or arrow keys
+- Select: left-click drag
+- Save: Enter (prompts for sprite name)
+- Switch sheets: Tab
 
 ---
 

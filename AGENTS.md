@@ -47,17 +47,10 @@ ff_clone/
 - X: Cancel/back
 - +/-: Scale up/down
 
-## Phases
-
-1. Core Skeleton - DONE
-2. Overworld - DONE
-3. Battle System - DONE
-4. Menu & Save
-
 ## Key Conventions
 
 - Battle system uses `plan/battle_system.md` for detailed documentation
 - Party members have: name, hp, hp_max, atk, def, spd, alive, level, xp, xp_next
 - Battle states: party_command → party_target → flash → message → execute
-- Use `python3 main.py` to run (arcade must be installed)
+- Use the venv to run `python3 main.py` to run (arcade must be installed)
 - Sync any field name changes between battle.py and menu.py (e.g., level vs lvl)

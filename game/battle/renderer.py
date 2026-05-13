@@ -3,6 +3,7 @@ from game.battle.model import BattleModel
 from game.battle.dataclasses import BattleEvent, ActionType
 from game.text import create_text
 from game.ui import COLORS, draw_window, draw_hp_bar, draw_mp_bar, draw_cursor
+from game.sprites import get_sprite_atlas
 
 
 class BattleRenderer:
@@ -17,6 +18,7 @@ class BattleRenderer:
         self._instruction_text = None
         self._centered_text = None
         self._current_state = ""
+        self._sprite_atlas = get_sprite_atlas()
 
     def _get_text(self, cache: dict, key: str, text: str, x: float, y: float, color, size: int, anchor_x="left", anchor_y="center"):
         scale = self._prev_scale
@@ -87,10 +89,17 @@ class BattleRenderer:
         for i, enemy in enumerate(enemies):
             cx = spacing * (i + 1)
             cy = h * 3 // 4 - 20 * scale
-            color = arcade.color.RED if enemy.alive else (80, 80, 80)
-            size = 16 * scale
-            arcade.draw_lrbt_rectangle_filled(cx - size // 2, cx + size // 2, cy - size // 2, cy + size // 2, color)
-            
+
+            sprite_id = enemy.name.lower().replace(" ", "_")
+            size = 24 * scale
+            if self._sprite_atlas.has_sprite(sprite_id) and enemy.alive:
+                self._sprite_atlas.draw(sprite_id, cx, cy, scale)
+                color = COLORS["enemy"]
+            else:
+                color = arcade.color.RED if enemy.alive else (80, 80, 80)
+                size = 16 * scale
+                arcade.draw_lrbt_rectangle_filled(cx - size // 2, cx + size // 2, cy - size // 2, cy + size // 2, color)
+
             font_size = int(6 * scale)
             hp_str = f"{enemy.name} {enemy.hp}/{enemy.hp_max}"
             text = self._get_text_simple(self._enemy_hp_texts, i, hp_str, cx, cy - size, color, font_size, anchor_y="center")
