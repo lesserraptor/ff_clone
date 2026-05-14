@@ -77,7 +77,7 @@ class SpriteAtlas:
 
         sprite_list = arcade.SpriteList()
         sprite_list.append(sprite)
-        sprite_list.draw()
+        sprite_list.draw(pixelated=True)
         return True
 
     def has_sprite(self, sprite_id: str) -> bool:

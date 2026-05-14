@@ -1,6 +1,7 @@
 {
   "sheets": {
-    "enemies": "Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png"
+    "enemies": "Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Enemies & Bosses - Enemies.png",
+    "characters": "Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Characters - Characters.png"
   },
   "sprites": {
     "goblin": {
@@ -44,6 +45,34 @@
       "y": 117,
       "w": 48,
       "h": 48
+    },
+    "warrior": {
+      "sheet": "characters",
+      "x": 2,
+      "y": 1,
+      "w": 16,
+      "h": 17
+    },
+    "wizard": {
+      "sheet": "characters",
+      "x": 1,
+      "y": 58,
+      "w": 16,
+      "h": 17
+    },
+    "rogue": {
+      "sheet": "characters",
+      "x": 1,
+      "y": 77,
+      "w": 17,
+      "h": 17
+    },
+    "healer": {
+      "sheet": "characters",
+      "x": 1,
+      "y": 234,
+      "w": 17,
+      "h": 17
     }
   }
 }

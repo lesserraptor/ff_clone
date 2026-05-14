@@ -1,8 +1,8 @@
 import random
 import json
 import os
-from game.input import UP, DOWN, LEFT, RIGHT, Z, X
-from game.engine import register_scene, SPELL_DATA
+from pyglet.window import key
+from game.engine import register_scene
 from game.battle.model import BattleModel
 from game.battle.renderer import BattleRenderer
 from game.battle.states import (
@@ -24,24 +24,24 @@ class BattleScene:
     def __init__(self, engine):
         self.engine = engine
         self.enemy_data = load_enemies()
-        self.spells = SPELL_DATA
+        import game.engine; self.spells = game.engine.SPELL_DATA
 
         party_data = []
         for p in engine.party:
             party_data.append({
-                "name": p.get("name", ""),
-                "hp": p.get("hp", p.get("hp_max", 50)),
-                "hp_max": p.get("hp_max", 50),
-                "mp": p.get("mp", 0),
-                "mp_max": p.get("mp_max", 0),
-                "atk": p.get("atk", 10),
-                "def": p.get("def", 5),
-                "spd": p.get("spd", 10),
-                "alive": p.get("hp", p.get("hp_max", 50)) > 0,
-                "lvl": p.get("lvl", p.get("level", 1)),
-                "exp": p.get("exp", p.get("xp", 0)),
-                "exp_next": p.get("exp_next", p.get("xp_next", 100)),
-                "spells": p.get("spells", []),
+                "name": p.name,
+                "hp": p.hp,
+                "hp_max": p.hp_max,
+                "mp": p.mp,
+                "mp_max": p.mp_max,
+                "atk": p.atk,
+                "def": p.def_,
+                "spd": p.spd,
+                "alive": p.hp > 0,
+                "lvl": p.lvl,
+                "exp": p.exp,
+                "exp_next": p.exp_next,
+                "spells": p.spells,
             })
 
         self.model = BattleModel(party_data, self.enemy_data, self.spells, engine.current_map)
@@ -70,13 +70,13 @@ class BattleScene:
         inpt = self.engine.input
         
         if self.state == "victory":
-            if inpt.is_just_pressed(Z):
+            if inpt.is_just_pressed(key.Z):
                 self._apply_victory()
                 self.engine.set_scene("overworld")
             return
 
         if self.state == "defeat":
-            if inpt.is_just_pressed(Z):
+            if inpt.is_just_pressed(key.Z):
                 for p in self.engine.party:
                     p["hp"] = p["hp_max"]
                     p["alive"] = True
@@ -94,148 +94,180 @@ class BattleScene:
             if result:
                 self._handle_result(result)
 
+    RESULT_DISPATCH = {
+        "reprocess": "_handle_reprocess",
+        "next_round": "_handle_next_round",
+        "next_action": "_handle_next_action",
+        "escape": "_handle_escape",
+        "victory": "_handle_victory",
+        "defeat": "_handle_defeat",
+        "victory_confirm": "_handle_victory_confirm",
+        "defeat_confirm": "_handle_defeat_confirm",
+        "spell_select": "_handle_spell_select",
+        "target_enemy": "_handle_target_enemy",
+        "advance": "_handle_advance",
+        "flash": "_handle_flash",
+        "process_events": "_handle_process_events",
+    }
+
     def _handle_result(self, result: str):
-        if result == "reprocess":
-            self._init_state()
+        handler_name = self.RESULT_DISPATCH.get(result)
+        if handler_name is not None:
+            getattr(self, handler_name)()
             return
-
-        if result == "next_round":
-            self.current_party_idx = 0
-            living = self.model.get_living_party()
-            if living:
-                self.current_party_idx = self.model.party.index(living[0])
-            self.state = "command"
-            self.current_state_obj = CommandState(self.current_party_idx)
-            return
-
-        if result == "next_action":
-            self.state = "execute"
-            self.current_state_obj = ExecuteState()
-            return
-
-        if result == "escape":
-            self.state = "message"
-            self.message = "Got away safely!"
-            self.current_state_obj = MessageState()
-            self.message_events = []
-            return
-
         if result.startswith("message:"):
-            msg = result.split(":", 1)[1]
-            self.state = "message"
-            self.message = msg
-            self.current_state_obj = MessageState()
-            self.message_events = []
+            self._handle_message(result.split(":", 1)[1])
             return
-
-        if result == "victory":
-            self.state = "victory"
-            self.current_state_obj = VictoryState()
-            return
-
-        if result == "defeat":
-            self.state = "defeat"
-            self.current_state_obj = DefeatState()
-            return
-
-        if result == "victory_confirm":
-            self._apply_victory()
-            self.engine.set_scene("overworld")
-            return
-
-        if result == "defeat_confirm":
-            for p in self.engine.party:
-                p["hp"] = p["hp_max"]
-                p["alive"] = True
-            self.engine.set_scene("title")
-            return
-
-        if result == "spell_select":
-            self.state = "spell_select"
-            self.current_state_obj = SpellSelectState(self.current_party_idx)
-            return
-
         if result.startswith("spell_target:"):
-            spell_id = result.split(":", 1)[1]
-            self.state = "target"
-            self.current_state_obj = TargetState(for_magic=True, spell_id=spell_id, member_idx=self.current_party_idx)
+            self._handle_spell_target(result.split(":", 1)[1])
             return
 
-        if result == "target_enemy":
-            self.state = "target"
-            self.current_state_obj = TargetState(for_magic=False, member_idx=self.current_party_idx)
+    def _handle_reprocess(self):
+        self._init_state()
+
+    def _handle_next_round(self):
+        self.current_party_idx = 0
+        living = self.model.get_living_party()
+        if living:
+            self.current_party_idx = self.model.party.index(living[0])
+        self.state = "command"
+        self.current_state_obj = CommandState(self.current_party_idx)
+
+    def _handle_next_action(self):
+        self.state = "execute"
+        self.current_state_obj = ExecuteState()
+
+    def _handle_escape(self):
+        self.state = "message"
+        self.message = "Got away safely!"
+        self.current_state_obj = MessageState()
+        self.message_events = []
+
+    def _handle_message(self, msg):
+        self.state = "message"
+        self.message = msg
+        self.current_state_obj = MessageState()
+        self.message_events = []
+
+    def _handle_victory(self):
+        self.state = "victory"
+        self.current_state_obj = VictoryState()
+
+    def _handle_defeat(self):
+        self.state = "defeat"
+        self.current_state_obj = DefeatState()
+
+    def _handle_victory_confirm(self):
+        self._apply_victory()
+        self.engine.set_scene("overworld")
+
+    def _handle_defeat_confirm(self):
+        for p in self.engine.party:
+            p["hp"] = p["hp_max"]
+            p["alive"] = True
+        self.engine.set_scene("title")
+
+    def _handle_spell_select(self):
+        self.state = "spell_select"
+        self.current_state_obj = SpellSelectState(self.current_party_idx)
+
+    def _handle_spell_target(self, spell_id):
+        self.state = "target"
+        self.current_state_obj = TargetState(for_magic=True, spell_id=spell_id, member_idx=self.current_party_idx)
+
+    def _handle_target_enemy(self):
+        self.state = "target"
+        self.current_state_obj = TargetState(for_magic=False, member_idx=self.current_party_idx)
+
+    def _handle_advance(self):
+        self._members_remaining -= 1
+
+        if self._members_remaining > 0:
+            # Find next living member
+            living = self.model.get_living_party()
+            next_idx = None
+            start_idx = self.current_party_idx
+            for _ in range(len(living)):
+                start_idx = (start_idx + 1) % len(living)
+                m = living[start_idx]
+                idx = self.model.party.index(m)
+                if idx != self.current_party_idx:  # Don't go back to current
+                    next_idx = idx
+                    break
+
+            if next_idx is not None:
+                self.current_party_idx = next_idx
+                self.state = "command"
+                self.current_state_obj = CommandState(self.current_party_idx)
+        else:
+            # All members have acted - execute battle
+            self.model.prepare_battle()
+            self.state = "execute"
+
+            self.current_state_obj = ExecuteState()
+
+    def _handle_flash(self):
+        self.current_state_obj = FlashState()
+
+    def _handle_process_events(self):
+        action = self.model.current_action
+        events = self.model.execute_action(action)
+
+        # Build combined event list with death messages
+        all_events = list(events)
+        for e in events:
+            if e.is_death and e.death_message:
+                from game.battle.dataclasses import BattleEvent
+                all_events.append(BattleEvent(
+                    message=e.death_message,
+                    actor=e.target,
+                    is_death=False
+                ))
+
+        if events:
+            self.message = events[0].message
+
+        victory, defeat = self.model.check_battle_end()
+        if victory or defeat:
+            self.state = "message"
+            self.current_state_obj = MessageState()
+            self.current_state_obj.events = all_events
+            self.current_state_obj.current_idx = 0
             return
 
-        if result == "advance":
-            self._members_remaining -= 1
-            
-            if self._members_remaining > 0:
-                # Find next living member
-                living = self.model.get_living_party()
-                next_idx = None
-                start_idx = self.current_party_idx
-                for _ in range(len(living)):
-                    start_idx = (start_idx + 1) % len(living)
-                    m = living[start_idx]
-                    idx = self.model.party.index(m)
-                    if idx != self.current_party_idx:  # Don't go back to current
-                        next_idx = idx
-                        break
-                
-                if next_idx is not None:
-                    self.current_party_idx = next_idx
-                    self.state = "command"
-                    self.current_state_obj = CommandState(self.current_party_idx)
-            else:
-                # All members have acted - execute battle
-                self.model.prepare_battle()
-                self.state = "execute"
-                
-                self.current_state_obj = ExecuteState()
-            return
+        if events:
+            self.state = "message"
+            self.current_state_obj = MessageState()
+            self.current_state_obj.events = all_events
+            self.current_state_obj.current_idx = 0
+            self.message = self.current_state_obj.get_message(self.model)
+        else:
+            self.state = "execute"
 
-        if result == "flash":
-            
-            self.current_state_obj = FlashState()
-            return
+            self.current_state_obj = ExecuteState()
 
-        if result == "process_events":
-            action = self.model.current_action
-            events = self.model.execute_action(action)
-            
-            # Build combined event list with death messages
-            all_events = list(events)
-            for e in events:
-                if e.is_death and e.death_message:
-                    from game.battle.dataclasses import BattleEvent
-                    all_events.append(BattleEvent(
-                        message=e.death_message,
-                        actor=e.target,
-                        is_death=False
-                    ))
-            
-            if events:
-                self.message = events[0].message
-            
-            victory, defeat = self.model.check_battle_end()
-            if victory or defeat:
-                self.state = "message"
-                self.current_state_obj = MessageState()
-                self.current_state_obj.events = all_events
-                self.current_state_obj.current_idx = 0
-                return
-            
-            if events:
-                self.state = "message"
-                self.current_state_obj = MessageState()
-                self.current_state_obj.events = all_events
-                self.current_state_obj.current_idx = 0
-                self.message = self.current_state_obj.get_message(self.model)
-            else:
-                self.state = "execute"
-                
-                self.current_state_obj = ExecuteState()
-            return
+    def _build_render_params(self):
+        options = ["FIGHT", "MAGIC", "ITEM", "RUN"]
+        selection = 0
+        target_idx = 0
+        is_magic = False
+        spell_id = ""
+        message = ""
+
+        if self.state == "command":
+            selection = self.current_state_obj.selection
+        elif self.state == "spell_select":
+            selection = self.current_state_obj.selection
+        elif self.state == "target":
+            target_idx = self.current_state_obj.selection
+            is_magic = self.current_state_obj.for_magic
+            spell_id = self.current_state_obj.spell_id
+        elif self.state == "message":
+            message = self.current_state_obj.get_message(self.model)
+        elif self.state in ("victory", "defeat"):
+            message = self.current_state_obj.get_message(self.model)
+
+        return options, selection, target_idx, is_magic, spell_id, message
 
     def _apply_victory(self):
         xp = self.model.rewards["xp"]
@@ -253,25 +285,9 @@ class BattleScene:
                     p.atk += 2
                     p.def_ += 1
         
-        party_dicts = []
-        for p in self.model.party:
-            party_dicts.append({
-                "name": p.name,
-                "hp": p.hp,
-                "hp_max": p.hp_max,
-                "mp": p.mp,
-                "mp_max": p.mp_max,
-                "atk": p.atk,
-                "def": p.def_,
-                "spd": p.spd,
-                "alive": p.alive,
-                "lvl": p.lvl,
-                "exp": p.exp,
-                "exp_next": p.exp_next,
-                "spells": p.spells,
-            })
-        
-        self.engine.party = party_dicts
+        from game.dataclasses import PartyMember
+        from game.battle.dataclasses import actor_to_dict
+        self.engine.party = [PartyMember.from_dict(actor_to_dict(p)) for p in self.model.party]
         self.engine.gold = self.engine.gold + gold
 
     def draw(self):
@@ -282,42 +298,7 @@ class BattleScene:
         if isinstance(self.current_state_obj, FlashState):
             flash_state = self.current_state_obj
 
-        options = ["FIGHT", "MAGIC", "ITEM", "RUN"]
-        selection = 0
-        target_idx = 0
-        is_magic = False
-        spell_id = ""
-        message = ""
-
-        if isinstance(self.current_state_obj, CommandState):
-            selection = self.current_state_obj.selection
-        elif isinstance(self.current_state_obj, SpellSelectState):
-            selection = self.current_state_obj.selection
-        elif isinstance(self.current_state_obj, TargetState):
-            target_idx = self.current_state_obj.selection
-            is_magic = self.current_state_obj.for_magic
-            spell_id = self.current_state_obj.spell_id
-        elif isinstance(self.current_state_obj, MessageState):
-            message = self.current_state_obj.get_message(self.model)
-        else:
-            message = ""
-        
-        if self.state == "message":
-            message = self.current_state_obj.get_message(self.model)
-        elif self.state == "command":
-            selection = self.current_state_obj.selection
-        elif self.state == "spell_select":
-            selection = self.current_state_obj.selection
-        elif self.state == "target":
-            target_idx = self.current_state_obj.selection
-            is_magic = self.current_state_obj.for_magic
-            spell_id = self.current_state_obj.spell_id
-        elif self.state == "victory":
-            message = self.current_state_obj.get_message(self.model)
-        elif self.state == "defeat":
-            message = self.current_state_obj.get_message(self.model)
-        else:
-            message = ""
+        options, selection, target_idx, is_magic, spell_id, message = self._build_render_params()
 
         self.renderer.draw(
             model=self.model,

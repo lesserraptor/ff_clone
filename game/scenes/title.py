@@ -1,5 +1,5 @@
 import arcade
-from game.input import UP, DOWN, Z
+from pyglet.window import key
 from game.engine import register_scene
 from game.text import create_text
 from game.ui import COLORS
@@ -21,11 +21,11 @@ class TitleScene:
         self.flash_timer += delta_time
 
         inpt = self.engine.input
-        if inpt.is_just_pressed(DOWN):
+        if inpt.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(self.options)
-        elif inpt.is_just_pressed(UP):
+        elif inpt.is_just_pressed(key.UP):
             self.selection = (self.selection - 1) % len(self.options)
-        elif inpt.is_just_pressed(Z):
+        elif inpt.is_just_pressed(key.Z):
             self.select_option()
 
     def select_option(self):

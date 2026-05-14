@@ -1,16 +1,9 @@
 import json
+from copy import deepcopy
+from game.dataclasses import PartyMember
 from game.input import InputState
 
 SCENES = {}
-
-def _register_font_early():
-    import pyglet.font
-    import os
-    font_path = os.path.join(os.path.dirname(__file__), "..", "assets", "final-fantasy-iv-japan-only.ttf")
-    if os.path.exists(font_path):
-        pyglet.font.add_file(font_path)
-
-_register_font_early()
 
 DEFAULT_PARTY = [
     {"name": "Warrior", "job": "Warrior", "hp": 50, "hp_max": 50, "mp": 0, "mp_max": 0, "atk": 12, "def": 5, "lvl": 1, "exp": 0, "exp_next": 100,
@@ -55,28 +48,26 @@ def get_item(id):
 
 def calc_party_stats(party):
     for member in party:
-        base_atk = member.get("atk", 10)
-        base_def = member.get("def", 5)
         atk_bonus = 0
         def_bonus = 0
         mag_bonus = 0
-        if member.get("weapon"):
-            w = WEAPON_DATA.get(member["weapon"], {})
+        if member.weapon:
+            w = WEAPON_DATA.get(member.weapon, {})
             atk_bonus += w.get("atk", 0)
             mag_bonus += w.get("mag", 0)
-        if member.get("armor"):
-            a = ARMOR_DATA.get(member["armor"], {})
+        if member.armor:
+            a = ARMOR_DATA.get(member.armor, {})
             def_bonus += a.get("def", 0)
             mag_bonus += a.get("mag", 0)
-        if member.get("helm"):
-            h = ARMOR_DATA.get(member["helm"], {})
+        if member.helm:
+            h = ARMOR_DATA.get(member.helm, {})
             def_bonus += h.get("def", 0)
-        if member.get("shield"):
-            s = ARMOR_DATA.get(member["shield"], {})
+        if member.shield:
+            s = ARMOR_DATA.get(member.shield, {})
             def_bonus += s.get("def", 0)
-        member["atk"] = base_atk + atk_bonus
-        member["def"] = base_def + def_bonus
-        member["mag"] = mag_bonus
+        member.atk = member.base_atk + atk_bonus
+        member.def_ = member.base_def + def_bonus
+        member.mag = mag_bonus
 
 
 def register_scene(name):
@@ -105,7 +96,7 @@ class GameEngine:
         self._scene_cooldown = 0
 
     def new_game(self):
-        self.party = json.loads(json.dumps(DEFAULT_PARTY))
+        self.party = [PartyMember.from_dict(p) for p in DEFAULT_PARTY]
         calc_party_stats(self.party)
         self.inventory = [
             {"id": "potion", "qty": 5},
@@ -122,7 +113,7 @@ class GameEngine:
 
     def get_state(self):
         return {
-            "party": self.party,
+            "party": [p.to_dict() for p in self.party],
             "inventory": self.inventory,
             "gold": self.gold,
             "current_map": self.current_map,
@@ -133,7 +124,7 @@ class GameEngine:
         }
 
     def load_state(self, state):
-        self.party = state.get("party")
+        self.party = [PartyMember.from_dict(p) for p in state.get("party", [])]
         self.inventory = state.get("inventory", [])
         self.gold = state.get("gold", 0)
         self.current_map = state.get("current_map", "overworld_1")
@@ -199,5 +190,3 @@ class GameEngine:
 
     def get_item_count(self):
         return sum(e["qty"] for e in self.inventory)
-
-load_game_data()

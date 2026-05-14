@@ -228,7 +228,7 @@ class SpritePicker(arcade.Window):
         sprite.center_y = cy
         sprite.scale = self.zoom
         sprite_list.append(sprite)
-        sprite_list.draw()
+        sprite_list.draw(pixelated=True)
 
         cx = self.width // 2 + self.pan_x * self.zoom
         cy = self.height // 2 + self.pan_y * self.zoom

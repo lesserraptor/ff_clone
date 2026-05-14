@@ -321,21 +321,3 @@ class BattleModel:
 
     def to_party_data(self) -> list[dict]:
         return [actor_to_dict(p) for p in self.party]
-
-
-def actor_to_dict(actor: Actor) -> dict:
-    return {
-        "name": actor.name,
-        "hp": actor.hp,
-        "hp_max": actor.hp_max,
-        "mp": actor.mp,
-        "mp_max": actor.mp_max,
-        "atk": actor.atk,
-        "def": actor.def_,
-        "spd": actor.spd,
-        "alive": actor.alive,
-        "lvl": actor.lvl,
-        "exp": actor.exp,
-        "exp_next": actor.exp_next,
-        "spells": actor.spells,
-    }

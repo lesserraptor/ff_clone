@@ -1,18 +1,5 @@
 from pyglet.window import key as pyglet_key
 
-UP = pyglet_key.UP
-DOWN = pyglet_key.DOWN
-LEFT = pyglet_key.LEFT
-RIGHT = pyglet_key.RIGHT
-ENTER = pyglet_key.RETURN
-ESCAPE = pyglet_key.ESCAPE
-Z = pyglet_key.Z
-X = pyglet_key.X
-A = pyglet_key.A
-S = pyglet_key.S
-MINUS = pyglet_key.MINUS
-EQUAL = pyglet_key.EQUAL
-
 
 class InputState:
     def __init__(self):
@@ -36,11 +23,11 @@ class InputState:
             return
 
         keys = {
-            UP, DOWN, LEFT, RIGHT,
-            Z, X,
-            ENTER, ESCAPE,
-            A, S,
-            MINUS, EQUAL,
+            pyglet_key.UP, pyglet_key.DOWN, pyglet_key.LEFT, pyglet_key.RIGHT,
+            pyglet_key.Z, pyglet_key.X,
+            pyglet_key.RETURN, pyglet_key.ESCAPE,
+            pyglet_key.A, pyglet_key.S,
+            pyglet_key.MINUS, pyglet_key.EQUAL,
         }
 
         currently_pressed = self.window.pressed_keys.copy() & keys

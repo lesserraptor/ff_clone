@@ -75,6 +75,3 @@ def has_save(slot):
     row = conn.execute("SELECT slot FROM saves WHERE slot = ?", (slot,)).fetchone()
     conn.close()
     return row is not None
-
-
-init_db()

@@ -3,6 +3,7 @@ from typing import Optional
 import random
 from game.battle.dataclasses import Actor, BattleEvent
 from game.battle.model import BattleModel
+from pyglet.window import key
 
 
 class BattleState(ABC):
@@ -23,13 +24,12 @@ class CommandState(BattleState):
 
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import UP, DOWN, Z, X
 
-        if inpt.is_just_pressed(DOWN):
+        if inpt.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(self.options)
-        elif inpt.is_just_pressed(Z):
+        elif inpt.is_just_pressed(key.Z):
             return self._handle_selection(model, self.selection)
-        elif inpt.is_just_pressed(X):
+        elif inpt.is_just_pressed(key.X):
             if self.member_idx in model.party_actions:
                 del model.party_actions[self.member_idx]
             return "reprocess"
@@ -65,25 +65,24 @@ class SpellSelectState(BattleState):
 
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import UP, DOWN, Z, X
 
         member = model.party[self.member_idx]
         spells = member.spells
         if not spells:
             return "command"
 
-        if inpt.is_just_pressed(DOWN):
+        if inpt.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(spells)
-        elif inpt.is_just_pressed(UP):
+        elif inpt.is_just_pressed(key.UP):
             self.selection = (self.selection - 1) % len(spells)
-        elif inpt.is_just_pressed(Z):
+        elif inpt.is_just_pressed(key.Z):
             spell_id = spells[self.selection]
             spell = model.spells.get(spell_id, {})
             mp_cost = spell.get("mp_cost", 0)
             if member.mp < mp_cost:
                 return "message:Not enough MP!"
             return f"spell_target:{spell_id}"
-        elif inpt.is_just_pressed(X):
+        elif inpt.is_just_pressed(key.X):
             return "command"
         return None
 
@@ -100,7 +99,6 @@ class TargetState(BattleState):
 
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import UP, DOWN, Z, X
 
         if self.for_magic:
             spell = model.spells.get(self.spell_id, {})
@@ -115,11 +113,11 @@ class TargetState(BattleState):
         if not targets:
             return "command"
 
-        if inpt.is_just_pressed(DOWN):
+        if inpt.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(targets)
-        elif inpt.is_just_pressed(UP):
+        elif inpt.is_just_pressed(key.UP):
             self.selection = (self.selection - 1) % len(targets)
-        elif inpt.is_just_pressed(Z):
+        elif inpt.is_just_pressed(key.Z):
             target = targets[self.selection]
             if self.for_magic:
                 target_idx = (model.party.index(target) if target in model.party 
@@ -129,7 +127,7 @@ class TargetState(BattleState):
                 target_idx = model.enemies.index(target)
                 model.queue_party_action(self.member_idx, "attack", target_idx)
             return "advance"
-        elif inpt.is_just_pressed(X):
+        elif inpt.is_just_pressed(key.X):
             if self.for_magic:
                 return "spell_select"
             return "command"
@@ -182,10 +180,9 @@ class MessageState(BattleState):
 
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import Z
 
         self.timer += delta_time
-        if self.timer >= self.duration or inpt.is_just_pressed(Z):
+        if self.timer >= self.duration or inpt.is_just_pressed(key.Z):
             self.current_idx += 1
             self.timer = 0
             if self.current_idx >= len(self.events):
@@ -206,8 +203,7 @@ class MessageState(BattleState):
 class VictoryState(BattleState):
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import Z
-        if inpt.is_just_pressed(Z):
+        if inpt.is_just_pressed(key.Z):
             return "victory_confirm"
         return None
 
@@ -218,8 +214,7 @@ class VictoryState(BattleState):
 class DefeatState(BattleState):
     def update(self, model: BattleModel, input_state, delta_time: float) -> Optional[str]:
         inpt = input_state
-        from game.input import Z
-        if inpt.is_just_pressed(Z):
+        if inpt.is_just_pressed(key.Z):
             return "defeat_confirm"
         return None
 

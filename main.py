@@ -1,4 +1,5 @@
 import arcade
+from game import init_game
 
 BASE_WIDTH = 240
 BASE_HEIGHT = 160
@@ -57,6 +58,7 @@ class GameWindow(arcade.Window):
 
 
 if __name__ == "__main__":
+    init_game()
     window = GameWindow()
     window.setup()
     arcade.run()
