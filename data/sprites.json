@@ -73,6 +73,206 @@
       "y": 234,
       "w": 17,
       "h": 17
+    },
+    "warrior_dn_0": {
+      "sheet": "characters",
+      "x": 2,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_dn_1": {
+      "sheet": "characters",
+      "x": 21,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_rt_0": {
+      "sheet": "characters",
+      "x": 39,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_rt_1": {
+      "sheet": "characters",
+      "x": 58,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_up_0": {
+      "sheet": "characters",
+      "x": 76,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_up_1": {
+      "sheet": "characters",
+      "x": 94,
+      "y": 2,
+      "w": 16,
+      "h": 16
+    },
+    "warrior_lf_0": {
+      "sheet": "characters",
+      "mirror_of": "warrior_rt_0"
+    },
+    "warrior_lf_1": {
+      "sheet": "characters",
+      "mirror_of": "warrior_rt_1"
+    },
+    "wizard_dn_0": {
+      "sheet": "characters",
+      "x": 2,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_dn_1": {
+      "sheet": "characters",
+      "x": 20,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_rt_0": {
+      "sheet": "characters",
+      "x": 39,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_rt_1": {
+      "sheet": "characters",
+      "x": 56,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_up_0": {
+      "sheet": "characters",
+      "x": 74,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_up_1": {
+      "sheet": "characters",
+      "x": 93,
+      "y": 59,
+      "w": 16,
+      "h": 16
+    },
+    "wizard_lf_0": {
+      "sheet": "characters",
+      "mirror_of": "wizard_rt_0"
+    },
+    "wizard_lf_1": {
+      "sheet": "characters",
+      "mirror_of": "wizard_rt_1"
+    },
+    "rogue_dn_0": {
+      "sheet": "characters",
+      "x": 2,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_dn_1": {
+      "sheet": "characters",
+      "x": 21,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_rt_0": {
+      "sheet": "characters",
+      "x": 39,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_rt_1": {
+      "sheet": "characters",
+      "x": 57,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_up_0": {
+      "sheet": "characters",
+      "x": 75,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_up_1": {
+      "sheet": "characters",
+      "x": 94,
+      "y": 78,
+      "w": 16,
+      "h": 16
+    },
+    "rogue_lf_0": {
+      "sheet": "characters",
+      "mirror_of": "rogue_rt_0"
+    },
+    "rogue_lf_1": {
+      "sheet": "characters",
+      "mirror_of": "rogue_rt_1"
+    },
+    "healer_dn_0": {
+      "sheet": "characters",
+      "x": 2,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_dn_1": {
+      "sheet": "characters",
+      "x": 20,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_rt_0": {
+      "sheet": "characters",
+      "x": 38,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_rt_1": {
+      "sheet": "characters",
+      "x": 54,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_up_0": {
+      "sheet": "characters",
+      "x": 71,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_up_1": {
+      "sheet": "characters",
+      "x": 89,
+      "y": 137,
+      "w": 16,
+      "h": 16
+    },
+    "healer_lf_0": {
+      "sheet": "characters",
+      "mirror_of": "healer_rt_0"
+    },
+    "healer_lf_1": {
+      "sheet": "characters",
+      "mirror_of": "healer_rt_1"
     }
   }
 }

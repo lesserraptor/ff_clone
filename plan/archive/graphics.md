@@ -225,7 +225,7 @@ Enemy sprite definitions using the enemies sheet (`assets/Game Boy _ GBC - Final
 5. Tab to switch between loaded sheets
 6. Saves to `data/sprites.json`
 
-### 2.3 Character Sprite Mapping (PARTIALLY COMPLETED)
+### 2.3 Character Sprite Mapping (COMPLETED)
 
 **Character sheet:** `assets/Game Boy _ GBC - Final Fantasy Legend 2 _ SaGa 2_ Hihou Densetsu - Characters - Characters.png` (465×718)
 
@@ -234,37 +234,34 @@ Enemy sprite definitions using the enemies sheet (`assets/Game Boy _ GBC - Final
 - [x] Map front-facing idle pose for each class → `warrior`, `wizard`, `rogue`, `healer`
 - [x] Add sprite definitions to `data/sprites.json` under `"characters"` sheet
 - [x] Add characters sheet filename to `data/sprites.json` `"sheets"` section
+- [x] White background auto-detected from sheet corners and removed via PIL BytesIO pipeline
 
-**PENDING — Directional + animation frames:**
+**COMPLETED — Full directional + animation pipeline for Warrior class:**
 
-Each character needs frames for all 4 walking directions (down, left, right, up), with 2 frames per direction (standing + walk frame) for animation.
+The full pipeline for mapping character sprites from the sheet to the game is proven:
 
-**ID convention:** `{class}_{direction}_{frame}`
+- [x] `tools/sprite_picker.py --class warrior` guided mode — steps through 6 frame names (dn_0 → up_1), saves directly to sprites.json
+- [x] `tools/export_frames.py` — debug export tool for frame extraction
+- [x] `data/sprites.json` has `warrior_dn_0`, `warrior_dn_1`, `warrior_rt_0`, `warrior_rt_1`, `warrior_up_0`, `warrior_up_1`
+- [x] `warrior_lf_0` and `warrior_lf_1` auto-created as `mirror_of` entries (H-mirror of rt_0, rt_1)
+- [x] `game/sprites.py` — `_preload_sprites()` handles `mirror_of` in second pass via `Image.FLIP_LEFT_RIGHT`
+- [x] `game/sprites.py` — auto-detects sheet background color (white for characters, teal for enemies) from full-sheet corners, removes it from all crops via RGBA conversion + exact-color alpha=0
+- [x] Walk animation frame toggling (0↔1) during movement based on `move_progress < 0.5`
+- [x] Directional sprite selection via `FACING_MAP` (down→dn, left→lf, right→rt, up→up)
 
-| Direction | Frame 0 (idle) | Frame 1 (walk) |
-|-----------|---------------|----------------|
-| down | `warrior_dn_0` | `warrior_dn_1` |
-| left | `warrior_lf_0` | `warrior_lf_1` |
-| right | `warrior_rt_0` | `warrior_rt_1` |
-| up | `warrior_up_0` | `warrior_up_1` |
-
-Same pattern for wizard, rogue, healer.
-
-**TODO:**
-- [ ] Map directional frames (down, left, right, up) for each class using sprite_picker
-- [ ] Map walk animation frame (frame 1) for each direction for each class
-- [ ] Verify all 32 sprites (4 classes × 4 directions × 2 frames) are defined in `data/sprites.json`
+**All 4 classes complete:**
+- [x] wizard mapped (8 sprites)
+- [x] rogue mapped (8 sprites)
+- [x] healer mapped (8 sprites)
+- [x] All 32 sprites (4 classes × 4 directions × 2 frames) defined in `data/sprites.json`
 
 ### 2.4 Updating Renderers
 
 **COMPLETED:**
 - `game/battle/renderer.py` — draws enemy sprites with fallback to colored rectangles
-- `game/scenes/overworld_states.py` — player sprite draws from atlas (front-facing only, no animation)
-
-**PENDING:**
-- [ ] `game/scenes/overworld_states.py` — select sprite based on `model.facing` direction (dn/lf/rt/up)
-- [ ] `game/scenes/overworld_states.py` — animate between frame 0 ↔ frame 1 during movement (walk cycle)
-- [ ] `game/scenes/overworld_states.py` — replace red rectangle NPCs with NPC sprites from atlas (requires NPC sprite IDs in maps.json)
+- `game/scenes/overworld_states.py` — player sprite draws from atlas with directional + walk animation
+- `game/scenes/overworld_states.py` — select sprite based on `model.facing` direction (dn/lf/rt/up) via `FACING_MAP`
+- `game/scenes/overworld_states.py` — animate between frame 0 ↔ frame 1 during movement (walk cycle)
 
 ### 2.5 Overworld Sprite Animation System
 
@@ -287,7 +284,7 @@ The overworld sprite animation has two axes:
 sprite_id = f"{model.player_sprite_id}_{dir_suffix}{frame}"
 where:
   dir_suffix = direction_map[model.facing]
-  frame = 0 if not model.is_moving else (int(model.move_progress * 2) % 2)
+  frame = 0 if not model.is_moving else (0 if model.move_progress < 0.5 else 1)
 ```
 
 If a specific directional/walk sprite doesn't exist in the atlas, fall back to the base front-facing idle sprite (e.g., `warrior`).
@@ -296,37 +293,45 @@ If a specific directional/walk sprite doesn't exist in the atlas, fall back to t
 
 **Sprite count:** 32 sprites total (4 classes × 4 directions × 2 frames) + 4 fallback sprites (base front-facing).
 
+### Background Color Auto-Detection
+
+**File:** `game/sprites.py`
+
+Sheet background color is auto-detected from the 4 corner pixels of each full sheet image before sprite preloading:
+
+1. Sample 4 corners of the full sheet
+2. Filter to only pixels with alpha=255
+3. Most common color among valid corners → `self._bg_colors[sheet_name]`
+4. In first pass, all pixels matching that color (with alpha=255) get alpha=0
+
+This handles:
+- Characters sheet (RGB origin, white corners) → removes exact-white background
+- Enemies sheet (RGBA origin, teal corners `(0,91,127)`) → removes exact-teal background
+
+Mirror pass copies source texture (already processed) — no double processing needed.
+
 ---
 
-## Phase 3: Maps + Tiles (PENDING)
-
-No files exist yet for tile/tilemap system. All tileset PNGs need to be sourced.
+## Phase 3: Maps + Tiles (COMPLETED)
 
 ### 3.1 Tile System
 
 **TODO:**
-- [ ] Create `game/tiles.py` — tile loading and rendering
-- [ ] Create `game/tilemap.py` — Tiled JSON map format loader + renderer
-- [ ] Define tile size (16×16 base expected)
+- [x] Create `game/tiles.py` — tile loading and rendering
+- [x] Create `game/tilemap.py` — tile rendering from GID grid
+- [x] Define tile size (16×16 base)
 - [ ] Support tile layers (ground, objects, collisions)
-
-**Potential assets (need to be sourced):**
-- Overworld tiles (grass, water, trees, mountains)
-- Town tiles (buildings, walls, floors)
-- Indoor tiles (floors, walls, stairs)
-
-No tileset files currently exist in `assets/`.
 
 ### 3.2 Tiled Map Integration
 
 **TODO:**
 - [ ] Parse Tiled JSON format (`.tmj` / `.json`)
-- [ ] Tile layer rendering from sprite atlas
+- [x] Tile layer rendering from tileset textures
 - [ ] Collision layer support
 - [ ] Object layer support (chests, NPC triggers, exits)
 - [ ] Replace current code-defined `maps.json` text-based tile system
 
-Current overworld tile system (`game/scenes/overworld_states.py`) uses a JSON-based map format with custom `tile_defs` (color + walkable flag). This works but is primitive — no tile images, just colored rectangles.
+Current overworld renderer uses `game/tiles.py` + `game/tilemap.py` with GID grids from `data/maps_converted.json`. Collision still uses old `tile_defs` with `walkable` flags.
 
 ---
 
@@ -336,7 +341,7 @@ All systems degrade gracefully:
 
 - **Font missing** (`onion-pixel.otf` not found) → `load_font()` returns None → `create_text()`/`draw_text()` skip silently. Fallback to arcade system font is NOT currently implemented (no explicit fallback font_name set).
 - **Sprite not defined** → `has_sprite()` returns False → renderers draw colored rectangle fallback
-- **Tile not defined** → use color from `tile_defs` with default gray
+- **Tile GID not in tileset** → skip (no drawn tile at that position)
 
 ---
 
@@ -386,3 +391,5 @@ Implemented in `game/ui.py` → `draw_pixellated_border()`. At scale S, border t
 | Border JSON data | `data/ui_borders.json` |
 | Sprite definitions JSON | `data/sprites.json` |
 | Border pixel patterns doc | `plan/menu_border_desc.md` |
+| Hometown tileset | `assets/extracted_hometown_tileset_rgb.png` |
+| Converted map data (GID grids) | `data/maps_converted.json` |

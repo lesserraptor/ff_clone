@@ -47,7 +47,7 @@ def draw_text(text, x, y, color=(255, 255, 255), size=8, scale=1.0, anchor_x="le
     )
 
 
-def create_text(text, x, y, color=(255, 255, 255), size=8, anchor_x="left", anchor_y="center"):
+def create_text(text, x, y, color=(255, 255, 255), size=8, anchor_x="left", anchor_y="center", width=None, multiline=False):
     font_name = load_font()
     import arcade
     return arcade.Text(
@@ -55,7 +55,9 @@ def create_text(text, x, y, color=(255, 255, 255), size=8, anchor_x="left", anch
         color, size,
         font_name=font_name,
         anchor_x=anchor_x,
-        anchor_y=anchor_y
+        anchor_y=anchor_y,
+        width=width,
+        multiline=multiline
     )
 
 
@@ -65,3 +67,22 @@ def get_text_width(text, size=8, scale=1.0):
 
 def get_text_height(size=8, scale=1.0):
     return size * scale
+
+
+def wrap_text(text, max_width, font_size, scale=1.0):
+    """Wrap text to fit within max_width pixels. Returns list of line strings."""
+    char_w = font_size * 0.6 * scale
+    max_chars = max(1, int(max_width / char_w))
+    words = text.split(' ')
+    lines = []
+    cur = ""
+    for w in words:
+        test = (cur + " " + w).strip()
+        if len(test) > max_chars and cur:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = test
+    if cur:
+        lines.append(cur)
+    return lines if lines else [text]

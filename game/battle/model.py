@@ -7,14 +7,16 @@ from game.battle.engine import SpeedQueue, calc_damage
 
 
 class BattleModel:
-    def __init__(self, party_data: list[dict], enemy_data: dict, spells: dict, map_id: str = ""):
+    def __init__(self, party_data: list[dict], enemy_data: dict, spells: dict, map_id: str = "", item_data: dict = None):
         self.spells = spells
-        self.rewards = {"xp": 0, "gold": 0}
+        self.item_data = item_data or {}
+        self.rewards = {"xp": 0, "gold": 0, "items": []}
         self.party: list[Actor] = []
         self.enemies: list[Actor] = []
         self.action_queue = SpeedQueue()
         self.party_actions: dict[int, dict] = {}
         self.current_action: Optional[Action] = None
+        self.used_items: list[str] = []
 
         self._init_party(party_data)
         self._init_enemies(enemy_data, map_id)
@@ -69,6 +71,20 @@ class BattleModel:
     def get_living_enemies(self) -> list[Actor]:
         return [e for e in self.enemies if e.alive]
 
+    def prepare_enemy_turn(self):
+        """Only enemies act (when escape attempt fails)."""
+        self.action_queue.clear()
+        for enemy in self.get_living_enemies():
+            living_party = self.get_living_party()
+            if living_party:
+                target = random.choice(living_party)
+                act = Action(
+                    actor=enemy,
+                    action_type=ActionType.ENEMY_ATTACK,
+                    target=target,
+                )
+                self.action_queue.add(act)
+
     def get_next_party_member(self, current_idx: int) -> Optional[Actor]:
         living = self.get_living_party()
         for i in range(len(living)):
@@ -90,6 +106,9 @@ class BattleModel:
             "target": target_idx,
             "spell_id": spell_id,
         }
+
+    def has_party_action(self, member_idx: int) -> bool:
+        return member_idx in self.party_actions
 
     def prepare_battle(self) -> None:
         self.action_queue.clear()
@@ -114,6 +133,21 @@ class BattleModel:
                         spell_name=spell.name if spell else spell_id,
                     )
                     self.action_queue.add(act)
+            elif action["type"] == "item":
+                item_id = action["spell_id"]
+                item_def = self.item_data.get(item_id, {})
+                target = None
+                if target_idx < len(self.party):
+                    target = self.party[target_idx]
+                if target:
+                    act = Action(
+                        actor=member,
+                        action_type=ActionType.USE_ITEM,
+                        target=target,
+                        spell_id=item_id,
+                        spell_name=item_def.get("name", item_id),
+                    )
+                    self.action_queue.add(act)
             else:
                 target = self.enemies[target_idx] if target_idx < len(self.enemies) else None
                 if target:
@@ -123,6 +157,8 @@ class BattleModel:
                         target=target,
                     )
                     self.action_queue.add(act)
+
+        self.used_items.clear()
 
         for enemy in self.get_living_enemies():
             living_party = self.get_living_party()
@@ -196,18 +232,23 @@ class BattleModel:
         if action.action_type == ActionType.PARTY_ATTACK:
             if not action.target or not action.target.alive:
                 return events
+            # Event 1: attack declaration
+            events.append(BattleEvent(
+                message=f"{action.actor.name} attacks {action.target.name}!",
+                actor=action.actor,
+                target=action.target,
+            ))
+            # Event 2: damage result
             dmg = calc_damage(action.actor.atk, action.target.def_)
             action.target.hp -= dmg
-            msg = f"{action.actor.name} attacks {action.target.name} for {dmg} damage!"
             events.append(BattleEvent(
-                message=msg,
+                message=f"{action.actor.name} deals {dmg} damage to {action.target.name}!",
                 actor=action.actor,
                 target=action.target,
                 damage=dmg,
             ))
             if action.target.hp <= 0:
                 action.target.hp = 0
-                action.target.alive = False
                 events[-1].is_death = True
                 events[-1].death_message = f"{action.target.name} is slain!"
                 self.rewards["xp"] += action.target.xp
@@ -229,18 +270,23 @@ class BattleModel:
             if spell.spell_type == SpellType.ATTACK:
                 if not action.target.alive:
                     return events
+                # Event 1: cast declaration
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} casts {spell.name} on {target_name}!",
+                    actor=action.actor,
+                    target=action.target,
+                ))
+                # Event 2: damage result
                 dmg = max(1, spell.power - action.target.def_)
                 action.target.hp -= dmg
-                msg = f"{action.actor.name} casts {spell.name} on {target_name} for {dmg} damage!"
                 events.append(BattleEvent(
-                    message=msg,
+                    message=f"{spell.name} deals {dmg} damage to {target_name}!",
                     actor=action.actor,
                     target=action.target,
                     damage=dmg,
                 ))
                 if action.target.hp <= 0:
                     action.target.hp = 0
-                    action.target.alive = False
                     events[-1].is_death = True
                     events[-1].death_message = f"{target_name} is slain!"
                     self.rewards["xp"] += action.target.xp
@@ -275,21 +321,76 @@ class BattleModel:
                     target=action.target,
                 ))
 
+        elif action.action_type == ActionType.USE_ITEM:
+            if not action.target:
+                return events
+            item_id = action.spell_id
+            item_def = self.item_data.get(item_id, {})
+            effect = item_def.get("effect", "")
+            value = item_def.get("value", 0)
+            target = action.target
+            item_name = item_def.get("name", item_id)
+
+            if effect == "heal":
+                old_hp = target.hp
+                target.hp = min(target.hp_max, target.hp + value)
+                healed = target.hp - old_hp
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} uses {item_name} on {target.name}! HP restored!",
+                    actor=action.actor, target=target, healed=healed,
+                ))
+            elif effect == "revive":
+                was_alive = target.alive
+                target.alive = True
+                target.hp = min(target.hp_max, value)
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} uses {item_name} on {target.name}! {target.name} revived!",
+                    actor=action.actor, target=target, healed=target.hp,
+                ))
+            elif effect == "mana":
+                old_mp = target.mp
+                target.mp = min(target.mp_max, target.mp + value)
+                restored = target.mp - old_mp
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} uses {item_name} on {target.name}! MP restored!",
+                    actor=action.actor, target=target, healed=restored,
+                ))
+            elif effect in ("full_restore", "restore_all"):
+                old_hp = target.hp
+                target.hp = target.hp_max
+                target.mp = target.mp_max
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} uses {item_name} on {target.name}! Fully restored!",
+                    actor=action.actor, target=target, healed=target.hp_max - old_hp,
+                ))
+            else:
+                events.append(BattleEvent(
+                    message=f"{action.actor.name} uses {item_name} on {target.name}!",
+                    actor=action.actor, target=target,
+                ))
+
+            self.used_items.append(item_id)
+
         elif action.action_type == ActionType.ENEMY_ATTACK:
             if not action.target or not action.target.alive:
                 return events
+            # Event 1: attack declaration
+            events.append(BattleEvent(
+                message=f"{action.actor.name} attacks {action.target.name}!",
+                actor=action.actor,
+                target=action.target,
+            ))
+            # Event 2: damage result
             dmg = calc_damage(action.actor.atk, action.target.def_)
             action.target.hp -= dmg
-            msg = f"{action.actor.name} attacks {action.target.name} for {dmg} damage!"
             events.append(BattleEvent(
-                message=msg,
+                message=f"{action.actor.name} deals {dmg} damage to {action.target.name}!",
                 actor=action.actor,
                 target=action.target,
                 damage=dmg,
             ))
             if action.target.hp <= 0:
                 action.target.hp = 0
-                action.target.alive = False
                 events[-1].is_death = True
                 events[-1].death_message = f"{action.target.name} falls!"
 

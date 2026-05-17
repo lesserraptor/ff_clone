@@ -21,6 +21,7 @@ class PartyMember:
     armor: Optional[str] = None
     helm: Optional[str] = None
     shield: Optional[str] = None
+    accessory: Optional[str] = None
     spells: list[str] = field(default_factory=list)
     status: list[str] = field(default_factory=list)
     mag: int = 0
@@ -58,6 +59,7 @@ class PartyMember:
             "armor": self.armor,
             "helm": self.helm,
             "shield": self.shield,
+            "accessory": self.accessory,
             "spells": list(self.spells),
             "status": list(self.status),
         }
@@ -82,6 +84,7 @@ class PartyMember:
             armor=d.get("armor"),
             helm=d.get("helm"),
             shield=d.get("shield"),
+            accessory=d.get("accessory"),
             spells=d.get("spells", []),
             status=d.get("status", []),
         )

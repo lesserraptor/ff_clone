@@ -4,6 +4,7 @@ import arcade
 import os
 import json
 import io
+from PIL import Image
 
 
 class SpriteAtlas:
@@ -14,6 +15,8 @@ class SpriteAtlas:
         self.sheets = {}
         self.definitions = {}
         self.sprite_textures = {}
+        self._bg_colors = {}
+        self._sheet_filenames = {}
 
     def load_sheet(self, name: str, filename: str):
         path = os.path.join(self.assets_path, filename)
@@ -31,7 +34,8 @@ class SpriteAtlas:
         with open(json_path, "r") as f:
             data = json.load(f)
 
-        for sheet_name, filename in data.get("sheets", {}).items():
+        self._sheet_filenames = data.get("sheets", {})
+        for sheet_name, filename in self._sheet_filenames.items():
             self.load_sheet(sheet_name, filename)
 
         self.definitions = data.get("sprites", {})
@@ -39,7 +43,25 @@ class SpriteAtlas:
         return True
 
     def _preload_sprites(self):
+        # Detect background color per sheet from full-sheet corners
+        for sheet_name, sheet in self.sheets.items():
+            img = sheet.image
+            w, h = img.size
+            corners = [
+                img.getpixel((0, 0)),
+                img.getpixel((w - 1, 0)),
+                img.getpixel((0, h - 1)),
+                img.getpixel((w - 1, h - 1)),
+            ]
+            valid = [c for c in corners if c[3] == 255] if len(corners[0]) >= 4 else corners
+            if valid:
+                self._bg_colors[sheet_name] = max(set(valid), key=valid.count)
+
+        # First pass: load all sprites with crop coordinates
         for sprite_id, sprite_def in self.definitions.items():
+            if "mirror_of" in sprite_def:
+                continue
+
             sheet_name = sprite_def.get("sheet")
             if sheet_name not in self.sheets:
                 continue
@@ -53,8 +75,44 @@ class SpriteAtlas:
             cropped = sheet.crop(sx, sy, sw, sh)
             img = cropped.image
 
+            # Ensure RGBA for transparency support
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+
+            # Remove sheet background color (detected from full sheet corners)
+            bg_color = self._bg_colors.get(sheet_name)
+            if bg_color is not None:
+                pixels_list = list(img.getdata())
+                new_data = []
+                for pixel in pixels_list:
+                    if pixel[:3] == bg_color[:3] and pixel[3] == 255:
+                        new_data.append((*bg_color[:3], 0))
+                    else:
+                        new_data.append(pixel)
+                img.putdata(new_data)
+
             buf = io.BytesIO()
             img.save(buf, format='PNG')
+            buf.seek(0)
+
+            self.sprite_textures[sprite_id] = arcade.load_texture(buf)
+
+        # Second pass: create mirrored copies
+        for sprite_id, sprite_def in self.definitions.items():
+            mirror_of = sprite_def.get("mirror_of")
+            if mirror_of is None:
+                continue
+
+            source = self.sprite_textures.get(mirror_of)
+            if source is None:
+                print(f"Warning: mirror_of source '{mirror_of}' not found for '{sprite_id}'")
+                continue
+
+            img = source.image
+            flipped = img.transpose(Image.FLIP_LEFT_RIGHT)
+
+            buf = io.BytesIO()
+            flipped.save(buf, format='PNG')
             buf.seek(0)
 
             self.sprite_textures[sprite_id] = arcade.load_texture(buf)
@@ -82,6 +140,10 @@ class SpriteAtlas:
 
     def has_sprite(self, sprite_id: str) -> bool:
         return sprite_id in self.sprite_textures
+
+    def get_texture(self, sprite_id: str):
+        """Get the texture for a sprite, or None if not found."""
+        return self.sprite_textures.get(sprite_id)
 
 
 _atlas_instance = None

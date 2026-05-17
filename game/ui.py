@@ -4,21 +4,21 @@ import json
 
 
 COLORS = {
-    "box_fill": (48, 48, 160),
+    "box_fill": (232, 232, 232),
     "box_border": (160, 160, 160),
-    "text": (255, 255, 255),
-    "cursor": (255, 255, 0),
-    "enemy": (255, 48, 48),
-    "player_hp": (48, 112, 208),
-    "hp_fill": (0, 200, 0),
-    "hp_empty": (80, 80, 80),
-    "mp_fill": (48, 48, 255),
-    "mp_empty": (80, 80, 80),
+    "text": (24, 24, 24),
+    "cursor": (24, 24, 24),
+    "enemy": (48, 48, 48),
+    "player_hp": (48, 48, 48),
+    "hp_fill": (48, 48, 48),
+    "hp_empty": (160, 160, 160),
+    "mp_fill": (80, 80, 80),
+    "mp_empty": (160, 160, 160),
 }
 
 
 def _derive_border_colors(border_color):
-    r, g, b = border_color
+    r, g, b = border_color[:3]
     w = (min(255, r + 60), min(255, g + 60), min(255, b + 60))
     g_col = (min(255, r + 30), min(255, g + 30), min(255, b + 30))
     b_col = (max(0, r - 40), max(0, g - 40), max(0, b - 40))

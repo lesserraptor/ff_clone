@@ -228,6 +228,18 @@
       "type": "helm",
       "def": 12,
       "description": "A helm blessed with silver"
+    },
+    "power_ring": {
+      "name": "Power Ring",
+      "type": "accessory",
+      "atk": 5,
+      "description": "A ring that boosts attack"
+    },
+    "protect_ring": {
+      "name": "Protect Ring",
+      "type": "accessory",
+      "def": 5,
+      "description": "A ring that boosts defense"
     }
   }
 }

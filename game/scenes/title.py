@@ -65,14 +65,14 @@ class TitleScene:
 
         font_size = int(8 * scale)
 
-        title_text = self._get_text("title", "FINAL FANTASY", font_size, COLORS["text"])
+        title_text = self._get_text("title", "FINAL FANTASY", font_size, (232, 232, 232))
         title_text.x = arc_x
         title_text.y = h // 2 + 40 * scale - font_size
         title_text.draw()
 
         option_y = h // 2 - 20 * scale
         for i, option in enumerate(self.options):
-            color = COLORS["cursor"] if i == self.selection else COLORS["text"]
+            color = (200, 200, 200) if i == self.selection else (232, 232, 232)
             if i == self.selection and self.flash_timer % 1 < 0.5:
                 color = (200, 200, 200)
             text = self._get_text(f"opt_{i}", option, font_size, color)
@@ -83,7 +83,7 @@ class TitleScene:
         if self.flash_timer % 0.5 < 0.25:
             sel_x = arc_x - 50 * scale
             sel_y = (h // 2 - 20 * scale) - self.selection * 16 * scale
-            sel_text = self._get_text("sel", ">", font_size, COLORS["text"])
+            sel_text = self._get_text("sel", ">", font_size, (232, 232, 232))
             sel_text.x = sel_x
             sel_text.y = sel_y - font_size
             sel_text.draw()

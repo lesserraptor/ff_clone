@@ -7,16 +7,16 @@ SCENES = {}
 
 DEFAULT_PARTY = [
     {"name": "Warrior", "job": "Warrior", "hp": 50, "hp_max": 50, "mp": 0, "mp_max": 0, "atk": 12, "def": 5, "lvl": 1, "exp": 0, "exp_next": 100,
-     "weapon": "iron_sword", "armor": "leather_armor", "helm": None, "shield": None,
+     "weapon": "iron_sword", "armor": "leather_armor", "helm": None, "shield": None, "accessory": None,
      "spells": [], "status": []},
     {"name": "Wizard", "job": "Wizard", "hp": 35, "hp_max": 35, "mp": 30, "mp_max": 30, "atk": 6, "def": 2, "lvl": 1, "exp": 0, "exp_next": 100,
-     "weapon": "iron_staff", "armor": "mage_robe", "helm": None, "shield": None,
+     "weapon": "iron_staff", "armor": "mage_robe", "helm": None, "shield": None, "accessory": None,
      "spells": ["fire", "ice", "thunder", "cure"], "status": []},
     {"name": "Rogue", "job": "Rogue", "hp": 40, "hp_max": 40, "mp": 0, "mp_max": 0, "atk": 10, "def": 4, "lvl": 1, "exp": 0, "exp_next": 100,
-     "weapon": "dagger", "armor": "leather_armor", "helm": None, "shield": None,
+     "weapon": "dagger", "armor": "leather_armor", "helm": None, "shield": None, "accessory": None,
      "spells": [], "status": []},
     {"name": "Healer", "job": "Healer", "hp": 30, "hp_max": 30, "mp": 40, "mp_max": 40, "atk": 6, "def": 3, "lvl": 1, "exp": 0, "exp_next": 100,
-     "weapon": "wooden_staff", "armor": "mage_robe", "helm": None, "shield": None,
+     "weapon": "wooden_staff", "armor": "mage_robe", "helm": None, "shield": None, "accessory": None,
      "spells": ["cure", "raise", "esuna"], "status": []},
 ]
 
@@ -65,6 +65,11 @@ def calc_party_stats(party):
         if member.shield:
             s = ARMOR_DATA.get(member.shield, {})
             def_bonus += s.get("def", 0)
+        if member.accessory:
+            a = ARMOR_DATA.get(member.accessory, {})
+            def_bonus += a.get("def", 0)
+            mag_bonus += a.get("mag", 0)
+            atk_bonus += a.get("atk", 0)
         member.atk = member.base_atk + atk_bonus
         member.def_ = member.base_def + def_bonus
         member.mag = mag_bonus

@@ -2,11 +2,12 @@ import random
 import json
 import os
 from pyglet.window import key
-from game.engine import register_scene
+from game.engine import register_scene, ITEM_DATA
 from game.battle.model import BattleModel
 from game.battle.renderer import BattleRenderer
 from game.battle.states import (
-    CommandState, SpellSelectState, TargetState, 
+    PartyCommandState, CharCommandState, SpellSelectState, TargetState,
+    ItemSelectState, RunOutcomeState,
     ExecuteState, FlashState, MessageState, VictoryState, DefeatState
 )
 
@@ -44,43 +45,43 @@ class BattleScene:
                 "spells": p.spells,
             })
 
-        self.model = BattleModel(party_data, self.enemy_data, self.spells, engine.current_map)
+        self.model = BattleModel(party_data, self.enemy_data, self.spells, engine.current_map, item_data=ITEM_DATA)
         self.renderer = BattleRenderer()
         
-        self.state = "command"
-        self.current_state_obj = CommandState(0)
+        self.state = "party_command"
+        self.current_state_obj = PartyCommandState()
         self.current_party_idx = 0
         self.message = ""
         self.message_events = []
-        self._members_visited = set()  # Track which members we've prompted this round
+        self.message_log: list[str] = []
+        self._members_remaining = 0
         
         self._init_state()
 
     def _init_state(self):
-        living = self.model.get_living_party()
-        if living:
-            self.current_party_idx = self.model.party.index(living[0])
-        else:
-            self.current_party_idx = 0
-        self.state = "command"
-        self.current_state_obj = CommandState(self.current_party_idx)
-        self._members_remaining = len(living)  # How many members to prompt this round
+        self.state = "party_command"
+        self.current_state_obj = PartyCommandState()
+        self.current_party_idx = 0
+        self._members_remaining = 0
 
     def update(self, delta_time):
         inpt = self.engine.input
-        
+
+        # Update death animations
+        for enemy in self.model.enemies:
+            if enemy.dying_timer > 0:
+                enemy.dying_timer -= delta_time
+
         if self.state == "victory":
-            if inpt.is_just_pressed(key.Z):
-                self._apply_victory()
-                self.engine.set_scene("overworld")
+            result = self.current_state_obj.update(self.model, inpt, delta_time)
+            if result:
+                self._handle_result(result)
             return
 
         if self.state == "defeat":
-            if inpt.is_just_pressed(key.Z):
-                for p in self.engine.party:
-                    p["hp"] = p["hp_max"]
-                    p["alive"] = True
-                self.engine.set_scene("title")
+            result = self.current_state_obj.update(self.model, inpt, delta_time)
+            if result:
+                self._handle_result(result)
             return
 
         if self.state == "message":
@@ -89,7 +90,12 @@ class BattleScene:
                 self._handle_result(result)
             return
 
-        if self.state in ("command", "spell_select", "target", "execute", "flash"):
+        interactive_states = {
+            "party_command", "char_command", "spell_select",
+            "target_enemy_attack", "target_enemy_spell", "target_party",
+            "item_select", "run_outcome", "execute", "flash",
+        }
+        if self.state in interactive_states:
             result = self.current_state_obj.update(self.model, inpt, delta_time)
             if result:
                 self._handle_result(result)
@@ -104,10 +110,17 @@ class BattleScene:
         "victory_confirm": "_handle_victory_confirm",
         "defeat_confirm": "_handle_defeat_confirm",
         "spell_select": "_handle_spell_select",
-        "target_enemy": "_handle_target_enemy",
         "advance": "_handle_advance",
         "flash": "_handle_flash",
         "process_events": "_handle_process_events",
+        "command": "_handle_command",
+        # New state-flow results
+        "party_command": "_handle_party_command",
+        "char_command": "_handle_char_command",
+        "run_attempt": "_handle_run_attempt",
+        "escape_failed": "_handle_escape_failed",
+        "target_enemy_attack": "_handle_target_enemy_attack",
+        "item_select": "_handle_item_select",
     }
 
     def _handle_result(self, result: str):
@@ -121,27 +134,39 @@ class BattleScene:
         if result.startswith("spell_target:"):
             self._handle_spell_target(result.split(":", 1)[1])
             return
+        if result.startswith("item_target:"):
+            self._handle_item_target(result.split(":", 1)[1])
+            return
 
     def _handle_reprocess(self):
         self._init_state()
 
-    def _handle_next_round(self):
-        self.current_party_idx = 0
+    def _handle_party_command(self):
+        self.state = "party_command"
+        self.current_state_obj = PartyCommandState()
+
+    def _handle_char_command(self):
+        """Start per-member menu loop."""
         living = self.model.get_living_party()
-        if living:
-            self.current_party_idx = self.model.party.index(living[0])
-        self.state = "command"
-        self.current_state_obj = CommandState(self.current_party_idx)
+        if not living:
+            self._handle_defeat()
+            return
+        self.current_party_idx = self.model.party.index(living[0])
+        self.state = "char_command"
+        self.current_state_obj = CharCommandState(self.current_party_idx)
+
+    def _handle_next_round(self):
+        self.model.used_items.clear()
+        self.message_log.clear()
+        self.state = "party_command"
+        self.current_state_obj = PartyCommandState()
 
     def _handle_next_action(self):
         self.state = "execute"
         self.current_state_obj = ExecuteState()
 
     def _handle_escape(self):
-        self.state = "message"
-        self.message = "Got away safely!"
-        self.current_state_obj = MessageState()
-        self.message_events = []
+        self.engine.set_scene("overworld")
 
     def _handle_message(self, msg):
         self.state = "message"
@@ -172,38 +197,75 @@ class BattleScene:
         self.current_state_obj = SpellSelectState(self.current_party_idx)
 
     def _handle_spell_target(self, spell_id):
-        self.state = "target"
-        self.current_state_obj = TargetState(for_magic=True, spell_id=spell_id, member_idx=self.current_party_idx)
+        spell = self.model.spells.get(spell_id, {})
+        target_type = spell.get("target", "enemy")
+        if target_type == "enemy":
+            self.state = "target_enemy_spell"
+        else:
+            self.state = "target_party"
+        self.current_state_obj = TargetState(
+            member_idx=self.current_party_idx,
+            target_type=target_type,
+            spell_id=spell_id,
+        )
 
-    def _handle_target_enemy(self):
-        self.state = "target"
-        self.current_state_obj = TargetState(for_magic=False, member_idx=self.current_party_idx)
+    def _handle_command(self):
+        self.state = "party_command"
+        self.current_state_obj = PartyCommandState()
+
+    def _handle_target_enemy_attack(self):
+        self.state = "target_enemy_attack"
+        self.current_state_obj = TargetState(
+            member_idx=self.current_party_idx,
+            target_type="enemy",
+        )
+
+    def _handle_item_select(self):
+        inventory = self.engine.inventory
+        self.state = "item_select"
+        self.current_state_obj = ItemSelectState(
+            member_idx=self.current_party_idx,
+            inventory=inventory,
+            item_data=ITEM_DATA,
+        )
+
+    def _handle_item_target(self, item_id):
+        self.state = "target_party"
+        self.current_state_obj = TargetState(
+            member_idx=self.current_party_idx,
+            target_type="ally",
+            item_id=item_id,
+        )
+
+    def _handle_run_attempt(self):
+        if random.random() < 0.5:
+            self.state = "run_outcome"
+            self.current_state_obj = RunOutcomeState(success=True)
+        else:
+            self.state = "run_outcome"
+            self.current_state_obj = RunOutcomeState(success=False)
+
+    def _handle_escape_failed(self):
+        """Enemies get a free turn."""
+        self.model.prepare_enemy_turn()
+        self.state = "execute"
+        self.current_state_obj = ExecuteState()
 
     def _handle_advance(self):
-        self._members_remaining -= 1
+        living = self.model.get_living_party()
+        # Find members who haven't acted yet
+        remaining = [p for p in living
+                     if not self.model.has_party_action(self.model.party.index(p))]
 
-        if self._members_remaining > 0:
-            # Find next living member
-            living = self.model.get_living_party()
-            next_idx = None
-            start_idx = self.current_party_idx
-            for _ in range(len(living)):
-                start_idx = (start_idx + 1) % len(living)
-                m = living[start_idx]
-                idx = self.model.party.index(m)
-                if idx != self.current_party_idx:  # Don't go back to current
-                    next_idx = idx
-                    break
-
-            if next_idx is not None:
-                self.current_party_idx = next_idx
-                self.state = "command"
-                self.current_state_obj = CommandState(self.current_party_idx)
+        if remaining:
+            next_idx = self.model.party.index(remaining[0])
+            self.current_party_idx = next_idx
+            self.state = "char_command"
+            self.current_state_obj = CharCommandState(self.current_party_idx)
         else:
-            # All members have acted - execute battle
+            # All members have acted — execute battle
             self.model.prepare_battle()
             self.state = "execute"
-
             self.current_state_obj = ExecuteState()
 
     def _handle_flash(self):
@@ -221,7 +283,8 @@ class BattleScene:
                 all_events.append(BattleEvent(
                     message=e.death_message,
                     actor=e.target,
-                    is_death=False
+                    is_death=False,
+                    apply_death=e.target,
                 ))
 
         if events:
@@ -243,31 +306,18 @@ class BattleScene:
             self.message = self.current_state_obj.get_message(self.model)
         else:
             self.state = "execute"
-
             self.current_state_obj = ExecuteState()
 
     def _build_render_params(self):
-        options = ["FIGHT", "MAGIC", "ITEM", "RUN"]
-        selection = 0
-        target_idx = 0
-        is_magic = False
-        spell_id = ""
         message = ""
-
-        if self.state == "command":
-            selection = self.current_state_obj.selection
-        elif self.state == "spell_select":
-            selection = self.current_state_obj.selection
-        elif self.state == "target":
-            target_idx = self.current_state_obj.selection
-            is_magic = self.current_state_obj.for_magic
-            spell_id = self.current_state_obj.spell_id
-        elif self.state == "message":
+        if self.state in ("message", "victory", "defeat", "run_outcome"):
             message = self.current_state_obj.get_message(self.model)
-        elif self.state in ("victory", "defeat"):
-            message = self.current_state_obj.get_message(self.model)
-
-        return options, selection, target_idx, is_magic, spell_id, message
+            # Track messages for scrolling log
+            if message and (not self.message_log or self.message_log[-1] != message):
+                self.message_log.append(message)
+                if len(self.message_log) > 20:  # cap at 20
+                    self.message_log = self.message_log[-20:]
+        return message
 
     def _apply_victory(self):
         xp = self.model.rewards["xp"]
@@ -298,7 +348,7 @@ class BattleScene:
         if isinstance(self.current_state_obj, FlashState):
             flash_state = self.current_state_obj
 
-        options, selection, target_idx, is_magic, spell_id, message = self._build_render_params()
+        message = self._build_render_params()
 
         self.renderer.draw(
             model=self.model,
@@ -306,12 +356,7 @@ class BattleScene:
             scale=scale,
             width=w,
             height=h,
-            message=message,
+            state_obj=self.current_state_obj,
             flash_state=flash_state,
-            options=options,
-            selection=selection,
-            current_member_idx=self.current_party_idx,
-            target_idx=target_idx,
-            is_magic=is_magic,
-            spell_id=spell_id,
+            message_log=self.message_log,
         )

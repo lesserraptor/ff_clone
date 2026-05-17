@@ -6,9 +6,11 @@ from pyglet.window import key
 from game.text import create_text
 from game.ui import COLORS, draw_window
 from game.sprites import get_sprite_atlas
+from game.tiles import Tileset
+from game.tilemap import Tilemap
 
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "maps.json")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "maps_converted.json")
 ENEMIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "enemies.json")
 
 
@@ -26,6 +28,13 @@ def load_enemies():
 class OverworldModel:
     """Pure state + logic for overworld. No arcade dependencies."""
 
+    FACING_MAP = {
+        "down": "dn",
+        "right": "rt",
+        "up": "up",
+        "left": "lf",
+    }
+
     def __init__(self, engine):
         self.tile_defs, self.maps, self.scripts = load_maps()
         self.enemy_data = load_enemies()
@@ -41,6 +50,8 @@ class OverworldModel:
         self.move_progress = 0.0
         self.move_speed = 120
         self.facing = "down"
+        self.class_name = engine.party[0].name.lower() if engine.party else "warrior"
+        self.walk_frame = 0
         self.player_sprite_id = engine.party[0].name.lower() if engine.party else "warrior"
         self._move_cooldown = 0
 
@@ -96,6 +107,11 @@ class OverworldModel:
                     "dest_y": exit_data.get("dest_y", 5),
                 }
         return None
+
+    def get_current_sprite_id(self):
+        """Return frame sprite ID based on facing and walk animation."""
+        dir_code = self.FACING_MAP.get(self.facing, self.facing)
+        return f"{self.class_name}_{dir_code}_{self.walk_frame}"
 
     # ── NPC interaction ──────────────────────────────────
 
@@ -160,8 +176,10 @@ class OverworldModel:
 
         # ── movement in progress ──
         if self.is_moving:
+            self.walk_frame = 0 if self.move_progress < 0.5 else 1
             self.move_progress += dt * self.move_speed / 16.0
             if self.move_progress >= 1.0:
+                self.walk_frame = 0
                 self.player_tile_x = self.target_tile_x
                 self.player_tile_y = self.target_tile_y
                 self.is_moving = False
@@ -212,6 +230,9 @@ class OverworldRenderer:
         self._map_name_text = None
         self._dialog_text = None
         self._arrow_text = None
+        self._tileset = None
+        self._tilemap = None
+        self._tilemap_map_id = None
 
     def _get_text(self, key, text, x, y, color, size, anchor_x="left", anchor_y="center"):
         scale = self._prev_scale
@@ -227,6 +248,23 @@ class OverworldRenderer:
             cache[key].y = y
         return cache[key]
 
+    def _get_tileset(self):
+        if self._tileset is None:
+            self._tileset = Tileset("assets/extracted_hometown_tileset_rgb.png")
+        return self._tileset
+
+    def _get_tilemap(self, model):
+        tileset = self._get_tileset()
+        if self._tilemap_map_id != model.current_map_id or self._tilemap is None:
+            self._tilemap = Tilemap(
+                tileset,
+                model.map_data["gids"],
+                model.map_data["width"],
+                model.map_data["height"],
+            )
+            self._tilemap_map_id = model.current_map_id
+        return self._tilemap
+
     def draw(self, model, scale, width, height):
         # ── background ──
         arcade.draw_lrbt_rectangle_filled(0, width, 0, height, (50, 50, 50))
@@ -241,15 +279,9 @@ class OverworldRenderer:
         offset_y = (height - map_h * tile_size) / 2
         tiles = model.map_data.get("tiles", [])
 
-        # ── tiles ──
-        for ty in range(map_h):
-            for tx in range(map_w):
-                tile_id = tiles[ty][tx]
-                tile_def = model.tile_defs.get(str(tile_id), {})
-                color = tile_def.get("color", [128, 128, 128])
-                px = offset_x + tx * tile_size
-                py = offset_y + (map_h - 1 - ty) * tile_size
-                arcade.draw_lrbt_rectangle_filled(px, px + tile_size, py, py + tile_size, color)
+        # ── tiles (textured) ──
+        tilemap = self._get_tilemap(model)
+        tilemap.draw(offset_x, offset_y, scale)
 
         # ── exits ──
         for exit_data in model.map_data.get("exits", []):
@@ -299,7 +331,11 @@ class OverworldRenderer:
 
         # ── player sprite ──
         atlas = get_sprite_atlas()
-        if atlas.has_sprite(model.player_sprite_id):
+        sprite_id = model.get_current_sprite_id()
+        if atlas.has_sprite(sprite_id):
+            atlas.draw(sprite_id, px, py, scale)
+        elif atlas.has_sprite(model.player_sprite_id):
+            # Fallback to old static sprite
             atlas.draw(model.player_sprite_id, px, py, scale)
         else:
             # Fallback: white rectangle

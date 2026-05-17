@@ -7,6 +7,7 @@ class ActionType(Enum):
     PARTY_ATTACK = auto()
     PARTY_MAGIC = auto()
     ENEMY_ATTACK = auto()
+    USE_ITEM = auto()
     RUN = auto()
 
 
@@ -54,6 +55,7 @@ class Actor:
     gold: int = 0
     spells: list[str] = field(default_factory=list)
     is_enemy: bool = False
+    dying_timer: float = 0.0
 
     @property
     def level(self) -> int:
@@ -89,6 +91,7 @@ class BattleEvent:
     xp_gained: int = 0
     gold_gained: int = 0
     death_message: str = ""
+    apply_death: Optional[Actor] = None
 
 
 def actor_from_dict(data: dict, is_enemy: bool = False) -> Actor:

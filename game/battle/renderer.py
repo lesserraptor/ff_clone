@@ -1,297 +1,562 @@
 import arcade
 from game.battle.model import BattleModel
 from game.battle.dataclasses import BattleEvent, ActionType
-from game.text import create_text
-from game.ui import COLORS, draw_window, draw_hp_bar, draw_mp_bar, draw_cursor
+from game.text import create_text, wrap_text
+from game.ui import COLORS, draw_window, draw_hp_bar, draw_cursor, draw_bordered_box
 from game.sprites import get_sprite_atlas
+
+
+# Base gameboy resolution
+BW, BH = 240, 160
+MENU_H = int(BH * 0.55)  # 88
+CHAR_BOX_W = int(BW * 2 / 5)  # 96
+ENEMY_BOX_X = CHAR_BOX_W  # 96
+ENEMY_BOX_W = BW - CHAR_BOX_W  # 144
+BORDER_PX = 6
+ROW_H = MENU_H // 4  # 22
 
 
 class BattleRenderer:
     def __init__(self):
         self._prev_scale = 0
-        self._option_texts = {}
-        self._message_text = None
-        self._hp_texts = {}
-        self._enemy_hp_texts = {}
-        self._spell_texts = {}
-        self._mp_text = None
-        self._instruction_text = None
-        self._centered_text = None
-        self._current_state = ""
+        self._texts = {}
         self._sprite_atlas = get_sprite_atlas()
 
-    def _get_text(self, cache: dict, key: str, text: str, x: float, y: float, color, size: int, anchor_x="left", anchor_y="center"):
-        scale = self._prev_scale
-        if scale != self._prev_scale or key not in cache:
-            cache[key] = create_text(text, x, y, color, size, anchor_x=anchor_x, anchor_y=anchor_y)
+    def _text(self, key, text, x, y, color, size, anchor_x="left", anchor_y="center", multiline=False, width=None):
+        s = self._prev_scale
+        if s not in self._texts:
+            self._texts[s] = {}
+        cache = self._texts[s]
+        if key not in cache:
+            cache[key] = create_text(text, x, y, color, size, anchor_x=anchor_x, anchor_y=anchor_y, width=width, multiline=multiline)
         else:
-            cache[key].text = text
-            cache[key].color = color
+            t = cache[key]
+            t.text = text
+            t.x = x
+            t.y = y
+            t.color = color
+            t.multiline = multiline
+            t.width = width
+        cache[key].draw()
         return cache[key]
 
-    def _get_text_simple(self, cache: dict, key: str, text: str, x: float, y: float, color, size: int, anchor_y="center"):
-        if self._prev_scale not in cache:
-            cache[self._prev_scale] = {}
-        scale_cache = cache[self._prev_scale]
-        if key not in scale_cache:
-            scale_cache[key] = create_text(text, x, y, color, size, anchor_y=anchor_y)
-        else:
-            scale_cache[key].text = text
-            scale_cache[key].color = color
-            scale_cache[key].x = x
-            scale_cache[key].y = y
-        return scale_cache[key]
-
-    def draw(self, model: BattleModel, state: str, scale: float, width: int, height: int, 
-             message: str = "", flash_state = None, options = None, selection = 0,
-             current_member_idx = 0, target_idx = 0, is_magic = False, spell_id = ""):
-        
-        self._current_state = state
-        
-        arcade.draw_lrbt_rectangle_filled(0, width, 0, height, (0, 0, 0))
-        
-        self.draw_enemy_area(model, width, height, scale)
-        self.draw_party_area(model, width, height, scale)
-        
-        if state == "command":
-            self.draw_command_bar(width, height, scale, options or [], selection)
-            self.draw_party_indicator(model, width, height, scale, current_member_idx)
-        elif state == "spell_select":
-            self.draw_command_bar(width, height, scale, options or [], selection)
-            self.draw_party_indicator(model, width, height, scale, current_member_idx)
-            self.draw_spell_list(model, width, height, scale, current_member_idx, selection)
-        elif state == "target":
-            self.draw_target_selection(model, width, height, scale, target_idx, is_magic, spell_id)
-        elif state == "execute":
-            self.draw_centered_text(width, height, scale, "BATTLE!", arcade.color.YELLOW, 12)
-        elif state == "flash":
-            self.draw_action_highlight(model, width, height, scale, flash_state)
-        
-        if message:
-            self.draw_message_box(width, height, scale, message)
-        elif state == "victory":
-            self.draw_centered_box(width, height, scale, f"VICTORY! +{model.rewards['xp']} XP  +{model.rewards['gold']} G", arcade.color.YELLOW)
-            self.draw_instruction(width, height, scale, "Press Z")
-        elif state == "defeat":
-            self.draw_centered_box(width, height, scale, "DEFEAT", arcade.color.RED)
-            self.draw_instruction(width, height, scale, "Press Z")
-        
+    # ------------------------------------------------------------------ #
+    #  Main dispatch                                                      #
+    # ------------------------------------------------------------------ #
+    def draw(self, model: BattleModel, state: str, scale: float, width: int, height: int,
+             state_obj=None, flash_state=None, message_log=None):
         self._prev_scale = scale
 
-    def draw_enemy_area(self, model: BattleModel, w: int, h: int, scale: float):
-        area_top = h * 3 // 4
-        draw_window(0, h // 4, w, area_top - h // 4, scale, (60, 0, 0))
-        
+        # 1. Background (full screen)
+        self.draw_background(width, height, scale)
+
+        # 2. Enemy sprites in top 45 %
+        self.draw_enemies(model, width, height, scale)
+
+        # 3. Dispatch menu-area drawing by state
+        dispatch = {
+            "party_command": self._draw_party_command,
+            "run_outcome": lambda *a, **kw: self._draw_run_outcome(*a, **kw, message_log=message_log),
+            "message": lambda *a, **kw: self._draw_message(*a, **kw, message_log=message_log),
+            "char_command": self._draw_char_command,
+            "target_enemy_attack": self._draw_target_enemies,
+            "spell_select": self._draw_spell_select,
+            "item_select": self._draw_item_select,
+            "execute": self._draw_execute,
+            "victory": lambda *a, **kw: self._draw_victory(*a, **kw, message_log=message_log),
+            "defeat": lambda *a, **kw: self._draw_defeat(*a, **kw, message_log=message_log),
+        }
+        # Dynamic states: target_enemy_spell, target_party, flash
+        if state == "flash":
+            # During flash, draw previous menu state beneath
+            pass
+        elif state.startswith("target_enemy"):
+            self._draw_target_enemies(model, scale, width, height, state_obj)
+        elif state.startswith("target_party"):
+            self._draw_target_party(model, scale, width, height, state_obj)
+        elif state in dispatch:
+            dispatch[state](model, scale, width, height, state_obj)
+        else:
+            self._draw_message(model, scale, width, height, state_obj)
+
+        # 4. Flash overlay (drawn on top of everything)
+        if flash_state is not None or state == "flash":
+            self._draw_flash(model, scale, width, height, flash_state)
+
+    # ------------------------------------------------------------------ #
+    #  Background                                                         #
+    # ------------------------------------------------------------------ #
+    def draw_background(self, w, h, scale):
+        """Flat light background."""
+        arcade.draw_lrbt_rectangle_filled(0, w, 0, h, (200, 200, 200))
+
+    # ------------------------------------------------------------------ #
+    #  Enemy sprites (top 45%)                                            #
+    # ------------------------------------------------------------------ #
+    def draw_enemies(self, model, w, h, scale):
         enemies = model.enemies
-        enemy_count = len(enemies)
-        spacing = w / (enemy_count + 1)
-        
+        if not enemies:
+            return
+        spacing = w / (len(enemies) + 1)
+        cy = int(h * 0.72)
         for i, enemy in enumerate(enemies):
             cx = spacing * (i + 1)
-            cy = h * 3 // 4 - 20 * scale
-
             sprite_id = enemy.name.lower().replace(" ", "_")
-            size = 24 * scale
-            if self._sprite_atlas.has_sprite(sprite_id) and enemy.alive:
-                self._sprite_atlas.draw(sprite_id, cx, cy, scale)
-                color = COLORS["enemy"]
-            else:
-                color = arcade.color.RED if enemy.alive else (80, 80, 80)
-                size = 16 * scale
-                arcade.draw_lrbt_rectangle_filled(cx - size // 2, cx + size // 2, cy - size // 2, cy + size // 2, color)
+            if self._sprite_atlas.has_sprite(sprite_id):
+                if enemy.alive:
+                    self._sprite_atlas.draw(sprite_id, cx, cy, scale * 1.2)
+                elif enemy.dying_timer > 0:
+                    self._draw_death_animation(sprite_id, cx, cy, scale * 1.2, enemy.dying_timer, 0.5)
 
-            font_size = int(6 * scale)
-            hp_str = f"{enemy.name} {enemy.hp}/{enemy.hp_max}"
-            text = self._get_text_simple(self._enemy_hp_texts, i, hp_str, cx, cy - size, color, font_size, anchor_y="center")
-            text.draw()
-
-    def draw_party_area(self, model: BattleModel, w: int, h: int, scale: float):
-        area_bottom = h // 4
-        draw_window(0, 0, w, area_bottom, scale, (0, 0, 60))
-        
-        box_w = w // 4 - 4 * scale
-        box_h = area_bottom - 8 * scale
-        
-        for i, member in enumerate(model.party):
-            col = i % 4
-            x = 8 * scale + col * (box_w + 4 * scale)
-            y = 4 * scale
-            color = arcade.color.GREEN if member.alive else (120, 120, 120)
-            arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, color[:3], int(scale))
-            
-            font_size = int(5 * scale)
-            alive_color = arcade.color.WHITE if member.alive else (120, 120, 120)
-            mp_color = arcade.color.CYAN if member.alive else (80, 80, 80)
-            self._get_text_simple(self._hp_texts, f"{i}_name", member.name, x + 4 * scale, y + box_h - 8 * scale, alive_color, font_size)
-            self._hp_texts[self._prev_scale][f"{i}_name"].draw()
-            
-            bar_y = y + 4 * scale
-            bar_width = box_w - 16 * scale
-            draw_hp_bar(member.hp, member.hp_max, x + 4 * scale, bar_y, scale, width=bar_width, height=3 * scale)
-            self._get_text_simple(self._hp_texts, f"{i}_hp", f"{member.hp}/{member.hp_max}", x + box_w - 8 * scale, bar_y + 2 * scale, alive_color, font_size - 1)
-            self._hp_texts[self._prev_scale][f"{i}_hp"].draw()
-            
-            if member.mp_max > 0:
-                mp_bar_y = bar_y + 6 * scale
-                draw_mp_bar(member.mp, member.mp_max, x + 4 * scale, mp_bar_y, scale, width=bar_width, height=3 * scale)
-                self._get_text_simple(self._hp_texts, f"{i}_mp", f"{member.mp}/{member.mp_max}", x + box_w - 8 * scale, mp_bar_y + 2 * scale, mp_color, font_size - 1)
-                self._hp_texts[self._prev_scale][f"{i}_mp"].draw()
-
-    def draw_command_bar(self, w: int, h: int, scale: float, options: list, selection: int):
-        cmd_h = h // 4
-        draw_window(0, 0, w, cmd_h, scale, (30, 30, 30))
-        
-        for i, option in enumerate(options):
-            x = 24 * scale + i * 48 * scale
-            y = 8 * scale
-            color = COLORS["cursor"] if i == selection else COLORS["text"]
-            text = self._get_text_simple(self._option_texts, i, option, x, y, color, int(8 * scale), anchor_y="center")
-            text.draw()
-
-    def draw_party_indicator(self, model: BattleModel, w: int, h: int, scale: float, member_idx: int):
-        if member_idx >= len(model.party):
+    def _draw_death_animation(self, sprite_id: str, cx: float, cy: float, scale: float, dying_timer: float, duration: float):
+        progress = 1.0 - (dying_timer / duration)  # 0.0 to 1.0
+        texture = self._sprite_atlas.get_texture(sprite_id)
+        if not texture:
             return
-        col = member_idx % 4
-        box_w = w // 4 - 4 * scale
-        x = 8 * scale + col * (box_w + 4 * scale)
-        y = 4 * scale
-        box_h = h // 4 - 8 * scale
-        arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, COLORS["cursor"], int(scale * 2))
 
-    def draw_spell_list(self, model: BattleModel, w: int, h: int, scale: float, member_idx: int, selection: int):
-        if member_idx >= len(model.party):
-            return
-        member = model.party[member_idx]
-        spells = member.spells
-        
-        spell_h = h // 4
-        draw_window(0, spell_h, w, 40 * scale, scale, (20, 20, 40))
-        box_x = 16 * scale
-        box_w = w - 32 * scale
-        box_y = spell_h + 4 * scale
-        box_h = 32 * scale
-        draw_window(box_x, box_y, box_w, box_h, scale, (20, 20, 40), (100, 200, 255))
-        
-        font_size = int(6 * scale)
-        if self._mp_text is None or self._prev_scale != scale:
-            self._mp_text = create_text(f"{member.name}  MP {member.mp}/{member.mp_max}", 24 * scale, box_y + box_h - 8 * scale, (100, 200, 255), font_size)
+        tw = texture.width
+        th = texture.height
+        sw = tw * scale
+        sh = th * scale
+
+        if progress < 0.7:
+            # Phase 1: collapse to center — top and bottom both pull to midpoint
+            p = progress / 0.7
+            h = sh * (1 - p) + 2 * p  # lerp from full height to 2px
+            w = sw
+            center_y = cy
         else:
-            self._mp_text.text = f"{member.name}  MP {member.mp}/{member.mp_max}"
-        self._mp_text.draw()
-        
-        for i, spell_id in enumerate(spells):
+            # Phase 2: horizontal collapse to center point
+            p = (progress - 0.7) / 0.3
+            h = 2
+            w = sw * (1 - p)  # shrink width to 0
+            center_y = cy
+
+        if w > 0 and h > 0:
+            arcade.draw_texture_rect(texture, arcade.XYWH(cx, center_y, max(w, 1), max(h, 1)), pixelated=True)
+
+    # ------------------------------------------------------------------ #
+    #  Party command (Phase 1)                                             #
+    # ------------------------------------------------------------------ #
+    def _draw_party_command(self, model, scale, w, h, state_obj):
+        me = int(scale)  # multiplier
+        bm = BORDER_PX * me  # border width in pixels
+
+        # --- Enemy name box (right 3/5, drawn first = behind) ---
+        ex = ENEMY_BOX_X * me
+        ew = ENEMY_BOX_W * me
+        eh = MENU_H * me
+        draw_window(ex, 0, ew, eh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        # Group enemies
+        groups = {}
+        for e in model.get_living_enemies():
+            groups[e.name] = groups.get(e.name, 0) + 1
+        lines = [f"{n}   {c}" if c > 1 else n for n, c in groups.items()]
+        line_h = int(10 * scale)
+        start_y = eh - bm - line_h
+        for li, line in enumerate(lines):
+            y = start_y - li * line_h
+            self._text(f"enemy_group_{li}", line, ex + 2 * bm, y,
+                       COLORS["text"], int(7 * scale), anchor_y="center")
+
+        # --- Character box (left 2/5, drawn on top) ---
+        cw = CHAR_BOX_W * me
+        ch = MENU_H * me
+        draw_window(0, 0, cw, ch, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        row_h = ROW_H * me
+        for mi, member in enumerate(model.party):
+            ry = (len(model.party) - 1 - mi) * row_h
+            sprite_id = member.name.lower()
+            # Sprite center in row
+            scx = bm + 10 * me
+            scy = ry + row_h // 2
+            if member.alive:
+                if not self._sprite_atlas.draw(sprite_id, scx, scy, scale):
+                    # fallback
+                    sz = 8 * me
+                    arcade.draw_lrbt_rectangle_filled(scx - sz, scx + sz,
+                                                       scy - sz, scy + sz,
+                                                        (48, 48, 48))
+            else:
+                # Dead = gray box
+                sz = 8 * me
+                arcade.draw_lrbt_rectangle_filled(scx - sz, scx + sz,
+                                                  scy - sz, scy + sz,
+                                                  (120, 120, 120))
+            # HP text beside sprite
+            hp_color = COLORS["text"] if member.alive else (120, 120, 120)
+            hp_str = f"{member.hp}/{member.hp_max}"
+            if not member.alive:
+                hp_str = "DEAD"
+            self._text(f"pc_hp_{mi}", hp_str, scx + 14 * me, scy,
+                       hp_color, int(6 * scale), anchor_y="center")
+
+        # --- Action box (overlapping both) ---
+        ax = ENEMY_BOX_X * me - bm
+        aw = int(80 * scale)
+        ah = int(40 * scale)
+        ay = (MENU_H * me - ah) // 2
+        # Clamp
+        ax = max(0, ax)
+        draw_window(ax, ay, aw, ah, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        sel = state_obj.selection if state_obj else 0
+        opts = state_obj.options if state_obj else ["Fight", "Run"]
+        opt_y = ay + 8 * me
+        opt_h = (ah - 16 * me) // 2
+        for oi, opt in enumerate(opts):
+            oy = opt_y + (len(opts) - 1 - oi) * opt_h + opt_h // 2
+            color = COLORS["cursor"] if oi == sel else COLORS["text"]
+            self._text(f"pc_opt_{oi}", opt, ax + 20 * me, oy,
+                       color, int(7 * scale), anchor_y="center")
+            if oi == sel:
+                draw_cursor(ax + 6 * me, oy, scale, COLORS["cursor"])
+
+    # ------------------------------------------------------------------ #
+    #  Run outcome (Phase 2)                                              #
+    # ------------------------------------------------------------------ #
+    def _draw_run_outcome(self, model, scale, w, h, state_obj, message_log=None):
+        self._draw_full_message_box(scale, w, h, state_obj, message_log)
+
+    # ------------------------------------------------------------------ #
+    #  Message (battle events during execution)                           #
+    # ------------------------------------------------------------------ #
+    def _draw_message(self, model, scale, w, h, state_obj, message_log=None):
+        self._draw_full_message_box(scale, w, h, state_obj, message_log)
+
+    def _draw_full_message_box(self, scale, w, h, state_obj, message_log=None):
+        """Full-width box with scrolling + text wrapping message log."""
+        me = int(scale)
+        mh = MENU_H * me
+        mw = w
+        draw_window(0, 0, mw, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        if not message_log:
+            return
+
+        font_size = int(7 * scale)
+        padding = 8 * me
+        available_w = mw - 2 * padding
+        line_h = font_size + 2 * me
+
+        # Build flat list of wrapped lines from all messages, with blank line separators
+        display_lines = []
+        for i, msg in enumerate(message_log):
+            wrapped = wrap_text(msg, available_w, font_size, scale)
+            display_lines.extend(wrapped if wrapped else [""])
+            if i < len(message_log) - 1:
+                display_lines.append("")  # blank line between messages
+
+        # Calculate lines that fit from bottom up
+        bottom_margin = 14 * me  # border_w + font_descender_buffer
+        # anchor_y="bottom": text extends UPWARD from y. Text bottom at bottom_margin.
+        # Text EXTENDS upward by ~font_size. So first line occupies bottom_margin .. bottom_margin+font_size.
+        bottom_y = bottom_margin
+        text_area_h = (mh - padding) - (bottom_y + line_h)
+        max_lines = max(1, text_area_h // line_h + 1)
+        visible = display_lines[-max_lines:]
+
+        for i, line in enumerate(visible):
+            y = bottom_y + (len(visible) - 1 - i) * line_h
+            self._text(f"log_{i}", line, padding, y,
+                       COLORS["text"], font_size,
+                       anchor_x="left", anchor_y="bottom")
+
+    # ------------------------------------------------------------------ #
+    #  Char command (Phase 3 — per member)                                #
+    # ------------------------------------------------------------------ #
+    def _draw_char_command(self, model, scale, w, h, state_obj):
+        me = int(scale)
+        bm = BORDER_PX * me
+        mh = MENU_H * me
+        member_idx = state_obj.member_idx if state_obj else 0
+        member = model.party[member_idx] if member_idx < len(model.party) else None
+
+        # --- Character box (left 2/5, single character) ---
+        cw = CHAR_BOX_W * me
+        draw_window(0, 0, cw, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        if member:
+            sprite_id = member.name.lower()
+            scx = bm + 14 * me
+            scy = bm + (mh - 2 * bm) // 2
+            if member.alive:
+                if not self._sprite_atlas.draw(sprite_id, scx, scy, scale * 1.5):
+                    sz = 12 * me
+                    arcade.draw_lrbt_rectangle_filled(scx - sz, scx + sz,
+                                                       scy - sz, scy + sz,
+                                                        (48, 48, 48))
+            else:
+                sz = 12 * me
+                arcade.draw_lrbt_rectangle_filled(scx - sz, scx + sz,
+                                                  scy - sz, scy + sz,
+                                                  (120, 120, 120))
+            # Name
+            nm_color = COLORS["text"] if member.alive else (120, 120, 120)
+            self._text(f"cc_name", member.name[:7], scx + 12 * me, scy + 10 * me,
+                       nm_color, int(7 * scale), anchor_y="center")
+            # HP
+            if member.alive:
+                hp_str = f"HP {member.hp}/{member.hp_max}"
+                self._text(f"cc_hp", hp_str, scx + 12 * me, scy - 2 * me,
+                           COLORS["text"], int(6 * scale), anchor_y="center")
+                # MP
+                if member.mp_max > 0:
+                    mp_str = f"MP {member.mp}/{member.mp_max}"
+                    self._text(f"cc_mp", mp_str, scx + 12 * me, scy - 10 * me,
+                               (120, 120, 120), int(6 * scale), anchor_y="center")
+            else:
+                self._text(f"cc_dead", "DEAD", scx + 12 * me, scy,
+                           (120, 120, 120), int(7 * scale), anchor_y="center")
+
+        # --- Options box (right 3/5) ---
+        ox = ENEMY_BOX_X * me
+        ow = ENEMY_BOX_W * me
+        draw_window(ox, 0, ow, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        sel = state_obj.selection if state_obj else 0
+        opts = state_obj.options if hasattr(state_obj, 'options') else ["Fight", "Magic", "Item"]
+        opt_h = (mh - 2 * bm) // len(opts)
+        for oi, opt in enumerate(opts):
+            oy = bm + (len(opts) - 1 - oi) * opt_h + opt_h // 2
+            color = COLORS["cursor"] if oi == sel else COLORS["text"]
+            self._text(f"cc_opt_{oi}", opt, ox + 4 * bm, oy,
+                       color, int(7 * scale), anchor_y="center")
+            if oi == sel:
+                draw_cursor(ox + bm, oy, scale, COLORS["cursor"])
+
+    # ------------------------------------------------------------------ #
+    #  Spell select (replaces options box)                                #
+    # ------------------------------------------------------------------ #
+    def _draw_spell_select(self, model, scale, w, h, state_obj):
+        me = int(scale)
+        bm = BORDER_PX * me
+        mh = MENU_H * me
+        member_idx = state_obj.member_idx if state_obj else 0
+        member = model.party[member_idx] if member_idx < len(model.party) else None
+
+        # Draw char box (same as char_command)
+        cw = CHAR_BOX_W * me
+        draw_window(0, 0, cw, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        if member:
+            sprite_id = member.name.lower()
+            scx = bm + 14 * me
+            scy = bm + (mh - 2 * bm) // 2
+            if member.alive:
+                if not self._sprite_atlas.draw(sprite_id, scx, scy, scale * 1.5):
+                    sz = 12 * me
+                    arcade.draw_lrbt_rectangle_filled(scx - sz, scx + sz,
+                                                       scy - sz, scy + sz,
+                                                        (48, 48, 48))
+            nm_color = COLORS["text"] if member.alive else (120, 120, 120)
+            self._text(f"ss_name", member.name[:7], scx + 12 * me, scy + 10 * me,
+                       nm_color, int(7 * scale), anchor_y="center")
+            hp_str = f"HP {member.hp}/{member.hp_max}" if member.alive else "DEAD"
+            self._text(f"ss_hp", hp_str, scx + 12 * me, scy - 2 * me,
+                       nm_color, int(6 * scale), anchor_y="center")
+
+        # Spell list in options area
+        ox = ENEMY_BOX_X * me
+        ow = ENEMY_BOX_W * me
+        draw_window(ox, 0, ow, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        spells = member.spells if member else []
+        sel = state_obj.selection if state_obj else 0
+        line_h = int(10 * scale)
+        start_y = mh - bm - line_h
+        for si, spell_id in enumerate(spells):
             spell = model.spells.get(spell_id, {})
             name = spell.get("name", spell_id)
             mp_cost = spell.get("mp_cost", 0)
-            y = box_y + box_h - 24 * scale - i * 12 * scale
-            can_cast = member.mp >= mp_cost
-            color = COLORS["cursor"] if i == selection else (COLORS["text"] if can_cast else (100, 100, 100))
-            if i == selection:
-                draw_cursor(24 * scale, y, scale)
-            text = self._get_text_simple(self._spell_texts, i, f"{name}  MP-{mp_cost}", 32 * scale, y, color, font_size)
-            text.draw()
+            y = start_y - si * line_h
+            can_cast = member and member.mp >= mp_cost
+            color = COLORS["cursor"] if si == sel else (COLORS["text"] if can_cast else (120, 120, 120))
+            self._text(f"ss_spell_{si}", f"{name}  MP{mp_cost}", ox + 3 * bm, y,
+                       color, int(6 * scale), anchor_y="center")
+            if si == sel:
+                draw_cursor(ox + bm, y, scale, COLORS["cursor"])
 
-    def draw_target_selection(self, model: BattleModel, w: int, h: int, scale: float, target_idx: int, is_magic: bool, spell_id: str):
-        if is_magic and spell_id:
-            spell = model.spells.get(spell_id, {})
-            target_type = spell.get("target", "enemy") if spell else "enemy"
-            if target_type == "enemy":
-                self._draw_target_enemies(model, w, h, scale, target_idx)
-            else:
-                self._draw_target_party(model, w, h, scale, target_idx)
-        else:
-            self._draw_target_enemies(model, w, h, scale, target_idx)
-
-    def _draw_target_enemies(self, model: BattleModel, w: int, h: int, scale: float, selection: int):
-        alive = model.get_living_enemies()
-        if not alive:
+    # ------------------------------------------------------------------ #
+    #  Target enemies (left 3/5 overlay)                                  #
+    # ------------------------------------------------------------------ #
+    def _draw_target_enemies(self, model, scale, w, h, state_obj):
+        me = int(scale)
+        bm = BORDER_PX * me
+        mh = MENU_H * me
+        con_margin = int(20 * scale)
+        tbox_w = int(BW * 3 / 5) * me  # left 3/5
+        draw_window(0, 0, tbox_w, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        sel = state_obj.selection if state_obj else 0
+        targets = model.get_living_enemies()
+        if not targets:
+            self._text("te_none", "No targets", bm, mh // 2,
+                       (120, 120, 120), int(7 * scale), anchor_y="center")
             return
-        target = alive[selection]
-        idx = model.enemies.index(target)
-        enemy_count = len(model.enemies)
-        spacing = w / (enemy_count + 1)
-        cx = spacing * (idx + 1)
-        cy = h * 3 // 4 - 20 * scale
-        size = 20 * scale
-        arcade.draw_lrbt_rectangle_outline(cx - size // 2, cx + size // 2, cy - size // 2, cy + size // 2, COLORS["cursor"], int(scale * 2))
+        line_h = int(12 * scale)
+        start_y = mh - bm - line_h
+        for ti, target in enumerate(targets):
+            y = start_y - ti * line_h
+            color = COLORS["cursor"] if ti == sel else COLORS["text"]
+            self._text(f"te_{ti}", target.name, tbox_w // 2, y,
+                       color, int(7 * scale), anchor_x="center", anchor_y="center")
+            if ti == sel:
+                draw_cursor(bm, y, scale, COLORS["cursor"])
 
-    def _draw_target_party(self, model: BattleModel, w: int, h: int, scale: float, selection: int):
-        alive = model.get_living_party()
-        if not alive:
+    # ------------------------------------------------------------------ #
+    #  Target party (left 3/5 overlay)                                    #
+    # ------------------------------------------------------------------ #
+    def _draw_target_party(self, model, scale, w, h, state_obj):
+        me = int(scale)
+        bm = BORDER_PX * me
+        mh = MENU_H * me
+        tbox_w = int(BW * 3 / 5) * me
+        draw_window(0, 0, tbox_w, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        sel = state_obj.selection if state_obj else 0
+        targets = model.get_living_party()
+        if not targets:
+            self._text("tp_none", "No targets", bm, mh // 2,
+                       (120, 120, 120), int(7 * scale), anchor_y="center")
             return
-        target = alive[selection]
-        idx = model.party.index(target)
-        box_w = w // 4 - 4 * scale
-        x = 8 * scale + idx * (box_w + 4 * scale)
-        y = 4 * scale
-        box_h = h // 4 - 8 * scale
-        arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, COLORS["cursor"], int(scale * 2))
+        line_h = int(12 * scale)
+        start_y = mh - bm - line_h
+        for ti, target in enumerate(targets):
+            y = start_y - ti * line_h
+            color = COLORS["cursor"] if ti == sel else COLORS["text"]
+            label = f"{target.name}  {target.hp}/{target.hp_max}"
+            self._text(f"tp_{ti}", label, bm, y,
+                       color, int(7 * scale), anchor_y="center")
+            if ti == sel:
+                draw_cursor(bm, y, scale, COLORS["cursor"])
 
-    def draw_action_highlight(self, model: BattleModel, w: int, h: int, scale: float, flash_state):
-        if not flash_state or not flash_state.elapsed:
+    # ------------------------------------------------------------------ #
+    #  Item select                                                        #
+    # ------------------------------------------------------------------ #
+    def _draw_item_select(self, model, scale, w, h, state_obj):
+        me = int(scale)
+        bm = BORDER_PX * me
+        mh = MENU_H * me
+        member_idx = state_obj.member_idx if state_obj else 0
+        member = model.party[member_idx] if member_idx < len(model.party) else None
+
+        # Char box (left)
+        cw = CHAR_BOX_W * me
+        draw_window(0, 0, cw, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        if member:
+            scx = bm + 14 * me
+            scy = bm + (mh - 2 * bm) // 2
+            nm_color = COLORS["text"] if member.alive else (120, 120, 120)
+            self._text(f"is_name", member.name[:7], scx, scy,
+                       nm_color, int(7 * scale), anchor_y="center")
+
+        # Item list (right)
+        ox = ENEMY_BOX_X * me
+        ow = ENEMY_BOX_W * me
+        draw_window(ox, 0, ow, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        sel = state_obj.selection if state_obj else 0
+        items = state_obj.items if hasattr(state_obj, 'items') else []
+        if not items:
+            self._text("is_empty", "No items", ox + 2 * bm, mh // 2,
+                       (120, 120, 120), int(7 * scale), anchor_y="center")
             return
+        line_h = int(10 * scale)
+        start_y = mh - bm - line_h
+        for ii, item in enumerate(items):
+            y = start_y - ii * line_h
+            item_def = model.item_data.get(item["id"], {})
+            name = item_def.get("name", item["id"])
+            label = f"{name} x{item['qty']}"
+            color = COLORS["cursor"] if ii == sel else COLORS["text"]
+            self._text(f"is_item_{ii}", label, ox + 3 * bm, y,
+                       color, int(6 * scale), anchor_y="center")
+            if ii == sel:
+                draw_cursor(ox + bm, y, scale, COLORS["cursor"])
+
+    # ------------------------------------------------------------------ #
+    #  Execute (battle in progress)                                       #
+    # ------------------------------------------------------------------ #
+    def _draw_execute(self, model, scale, w, h, state_obj):
+        """Full-width message box during execution."""
+        me = int(scale)
+        mh = MENU_H * me
+        draw_window(0, 0, w, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        self._text("exec_title", "BATTLE!", w // 2, mh // 2,
+                   (24, 24, 24), int(8 * scale),
+                   anchor_x="center", anchor_y="center")
+
+    # ------------------------------------------------------------------ #
+    #  Victory                                                            #
+    # ------------------------------------------------------------------ #
+    def _draw_victory(self, model, scale, w, h, state_obj, message_log=None):
+        me = int(scale)
+        mh = MENU_H * me
+        draw_window(0, 0, w, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        msg = state_obj.get_message(model) if state_obj else "Victory!"
+        lines = msg.split("\n")
+        line_h = int(10 * scale)
+        total_h = len(lines) * line_h
+        start_y = (mh - total_h) // 2 + total_h - line_h
+        for li, line in enumerate(lines):
+            color = (24, 24, 24) if li == 0 else (48, 48, 48) if "GP" in line or "EXP" in line else COLORS["text"]
+            self._text(f"vic_{li}", line, 8 * me, start_y - li * line_h,
+                       color, int(7 * scale), anchor_y="center")
+
+    # ------------------------------------------------------------------ #
+    #  Defeat                                                             #
+    # ------------------------------------------------------------------ #
+    def _draw_defeat(self, model, scale, w, h, state_obj, message_log=None):
+        me = int(scale)
+        mh = MENU_H * me
+        draw_window(0, 0, w, mh, scale,
+                    fill_color=COLORS["box_fill"], border_color=COLORS["box_border"])
+        msg = state_obj.get_message(model) if state_obj else "Defeat..."
+        self._text("defeat_msg", msg, w // 2, mh // 2,
+                   (48, 48, 48), int(8 * scale),
+                   anchor_x="center", anchor_y="center")
+
+    # ------------------------------------------------------------------ #
+    #  Flash highlight                                                    #
+    # ------------------------------------------------------------------ #
+    def _draw_flash(self, model, scale, w, h, flash_state=None):
+        """Draw gold/red outline on acting actor (toggled by flash_state)."""
         action = model.current_action
         if not action:
             return
-        if action.action_type == ActionType.PARTY_ATTACK:
-            for i, member in enumerate(model.party):
+        is_on = True
+        if flash_state is not None:
+            is_on = flash_state.flash_count % 2 == 0
+        if not is_on:
+            return
+        if action.action_type in (ActionType.PARTY_ATTACK, ActionType.PARTY_MAGIC, ActionType.USE_ITEM):
+            for mi, member in enumerate(model.party):
                 if member.name == action.actor.name:
-                    col = i % 4
-                    box_w = w // 4 - 4 * scale
-                    x = 8 * scale + col * (box_w + 4 * scale)
-                    y = 4 * scale
-                    box_h = h // 4 - 8 * scale
-                    if flash_state.flash_count % 2 == 0:
-                        arcade.draw_lrbt_rectangle_outline(x, x + box_w, y, y + box_h, COLORS["cursor"], int(scale * 2))
+                    me = int(scale)
+                    scx = int(8 * scale) + 10 * me
+                    scy = (len(model.party) - 1 - mi) * ROW_H * me + ROW_H * me // 2
+                    sz = 10 * me
+                    arcade.draw_lrbt_rectangle_outline(scx - sz - 2 * me,
+                                                       scx + sz + 2 * me,
+                                                       scy - sz - 2 * me,
+                                                       scy + sz + 2 * me,
+                                                        (24, 24, 24), int(scale * 2))
                     break
         elif action.action_type == ActionType.ENEMY_ATTACK:
-            for i, enemy in enumerate(model.enemies):
+            for ei, enemy in enumerate(model.enemies):
                 if enemy.name == action.actor.name:
-                    enemy_count = len(model.enemies)
-                    spacing = w / (enemy_count + 1)
-                    cx = spacing * (i + 1)
-                    cy = h * 3 // 4 - 20 * scale
-                    size = 16 * scale
-                    if flash_state.flash_count % 2 == 0:
-                        arcade.draw_lrbt_rectangle_outline(cx - size // 2, cx + size // 2, cy - size // 2, cy + size // 2, COLORS["enemy"], int(scale * 2))
+                    enemies = model.enemies
+                    spacing = w / (len(enemies) + 1)
+                    cx = spacing * (ei + 1)
+                    cy = int(h * 0.72)
+                    sz = 14 * int(scale)
+                    arcade.draw_lrbt_rectangle_outline(cx - sz, cx + sz,
+                                                       cy - sz, cy + sz,
+                                                        (48, 48, 48), int(scale * 2))
                     break
-
-    def draw_centered_text(self, w: int, h: int, scale: float, text: str, color, size: int):
-        if self._centered_text is None or self._prev_scale != scale:
-            self._centered_text = create_text(text, w // 2, h // 2, color, int(size * scale), anchor_x="center", anchor_y="center")
-        else:
-            self._centered_text.text = text
-            self._centered_text.color = color
-        self._centered_text.draw()
-
-    def draw_message_box(self, w: int, h: int, scale: float, message: str):
-        box_h = 24 * scale
-        box_y = h // 2 - box_h // 2
-        draw_window(16 * scale, box_y, w - 32 * scale, box_h, scale)
-        
-        if self._message_text is None or self._prev_scale != scale:
-            self._message_text = create_text(message, w // 2, box_y + box_h // 2, COLORS["text"], int(8 * scale), anchor_x="center", anchor_y="center")
-        else:
-            self._message_text.text = message
-        self._message_text.draw()
-
-    def draw_centered_box(self, w: int, h: int, scale: float, text: str, color):
-        box_w = w - 32 * scale
-        box_h = 40 * scale
-        bx = 16 * scale
-        by = h // 2 - box_h // 2
-        draw_window(bx, by, box_w, box_h, scale, (0, 0, 0), color)
-        if self._centered_text is None or self._prev_scale != scale:
-            self._centered_text = create_text(text, w // 2, h // 2, color, int(8 * scale), anchor_x="center", anchor_y="center")
-        else:
-            self._centered_text.text = text
-            self._centered_text.color = color
-        self._centered_text.draw()
-
-    def draw_instruction(self, w: int, h: int, scale: float, text: str):
-        if self._instruction_text is None or self._prev_scale != scale:
-            self._instruction_text = create_text(text, w // 2, h // 2 - 16 * scale, COLORS["text"], int(6 * scale), anchor_x="center")
-        else:
-            self._instruction_text.text = text
-            self._instruction_text.y = h // 2 - 16 * scale
-        self._instruction_text.draw()

@@ -15,23 +15,20 @@ class MenuScene:
     def _get_state_classes(cls):
         if cls._state_classes is None:
             from game.scenes.menu_states import (
-                MainMenuState, StatusMenuState, StatusCharMenuState,
-                ItemsMenuState, ItemsUseMenuState,
-                MagicMenuState,
-                EquipMenuState, EquipSlotMenuState,
-                SaveMenuState, LoadMenuState,
+                MainMenuState,
+                ItemsMenuState,
+                StatusMenuState,
+                EquipCharSelectState,
+                EquipDetailState,
+                SaveMenuState,
             )
             cls._state_classes = {
                 "main": MainMenuState,
-                "status": StatusMenuState,
-                "status_char": StatusCharMenuState,
                 "items": ItemsMenuState,
-                "items_use": ItemsUseMenuState,
-                "magic": MagicMenuState,
-                "equip": EquipMenuState,
-                "equip_slot": EquipSlotMenuState,
+                "status": StatusMenuState,
+                "equip": EquipCharSelectState,
+                "equip_detail": EquipDetailState,
                 "save": SaveMenuState,
-                "load": LoadMenuState,
             }
         return cls._state_classes
 
@@ -72,7 +69,11 @@ class MenuScene:
             cache[key].y = y
         return cache[key]
 
-    def draw_box(self, l, r, b, t, scale, fill=(48, 48, 160), border=COLORS["box_border"]):
+    def draw_box(self, l, r, b, t, scale, fill=None, border=None):
+        if fill is None:
+            fill = COLORS["box_fill"]
+        if border is None:
+            border = COLORS["box_border"]
         draw_window(l, b, r - l, t - b, scale, fill, border)
 
     def draw_text(self, text, x, y, color, size, center=False, anchor_x="left"):
