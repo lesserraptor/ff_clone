@@ -109,6 +109,11 @@ class GameEngine:
             {"id": "ether", "qty": 2},
             {"id": "phoenix_down", "qty": 1},
             {"id": "tent", "qty": 1},
+            {"id": "iron_sword", "qty": 1},
+            {"id": "leather_armor", "qty": 1},
+            {"id": "steel_shield", "qty": 1},
+            {"id": "iron_helm", "qty": 1},
+            {"id": "power_ring", "qty": 1},
         ]
         self.gold = 150
         self.current_map = "overworld_1"

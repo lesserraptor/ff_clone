@@ -1,5 +1,6 @@
 """Menu sub-states for the GBC-style menu system."""
 
+import time
 from abc import ABC, abstractmethod
 from pyglet.window import key
 from game.engine import get_item, calc_party_stats
@@ -47,12 +48,34 @@ class MenuState(ABC):
 class MainMenuState(MenuState):
     """Main menu: left menu panel + right party list + gold bar."""
 
-    def __init__(self, menu):
+    def __init__(self, menu, phase="menu", char_idx=0):
         super().__init__(menu)
         self.selection = 0
         self.options = ["Items", "Equip", "Status", "Save"]
+        self._phase = phase
+        self._char_selection = char_idx
+        # ── Sprite animation ──
+        self._anim_interval = 8 / 60  # seconds between sprite toggles (~15fps); increase to slow down
+        self._anim_next_toggle = time.monotonic() + self._anim_interval  # first toggle after one interval
+        self._anim_frame = 0
 
     def update(self, inp):
+        now = time.monotonic()
+        if now >= self._anim_next_toggle:
+            self._anim_next_toggle = now + self._anim_interval
+            self._anim_frame = 1 - self._anim_frame
+        if self._phase == "equip_char":
+            if inp.is_just_pressed(key.DOWN):
+                self._char_selection = (self._char_selection + 1) % len(self.party)
+            elif inp.is_just_pressed(key.UP):
+                self._char_selection = (self._char_selection - 1) % len(self.party)
+            elif inp.is_just_pressed(key.Z):
+                self.menu.set_state("equip_detail", char_idx=self._char_selection)
+            elif inp.is_just_pressed(key.X):
+                self._phase = "menu"
+                self.selection = 2
+            return
+
         if inp.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(self.options)
         elif inp.is_just_pressed(key.UP):
@@ -62,7 +85,8 @@ class MainMenuState(MenuState):
             if name == "items":
                 self.menu.set_state("items")
             elif name == "equip":
-                self.menu.set_state("equip")
+                self._phase = "equip_char"
+                self._char_selection = 0
             elif name == "status":
                 self.menu.set_state("status")
             elif name == "save":
@@ -71,43 +95,81 @@ class MainMenuState(MenuState):
             self.engine.set_scene("overworld")
 
     def draw(self, w, h, scale):
-        fs = int(7 * scale)
-        fs2 = int(6 * scale)
-        gold_color = (255, 215, 0)
-        menu_w = 80 * scale
-        party_l = menu_w
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(7 * scale)        # menu option text
+        FS2 = int(6 * scale)       # sub-text / stats
+        FS_SM = int(5 * scale)     # HP/MP numbers
 
-        # ── Party list — right 2/3, above gold bar ──
-        self.draw_box(party_l, 240 * scale, 20 * scale, 160 * scale, scale)
+        # ──── Screen / panel dimensions ────
+        SCREEN_W = 240 * scale     # full screen width
+        SCREEN_H = 160 * scale     # full screen height
+        MENU_W = 80 * scale        # left menu panel width
+        MENU_L = 0 * scale         # left edge of menu panel
+        PARTY_L = MENU_W           # left edge of party panel (= right edge of menu)
+        GOLD_H = 30 * scale        # gold bar height
+        GOLD_B = 0 * scale         # gold bar bottom
+
+        # ──── Menu panel rows ────
+        MENU_ROW_1 = 146 * scale   # first option Y
+        MENU_ROW_GAP = 16 * scale  # vertical space between options
+
+        # ──── Party panel rows ────
+        PARTY_ROW_1 = 146 * scale  # first party member Y
+        PARTY_ROW_GAP = 32 * scale # vertical space between members
+
+        # ──── Party panel offsets ────
+        SPRITE_X_OFF = 24 * scale  # sprite X offset from panel left
+        NAME_X_OFF = 16 * scale    # name X offset from sprite (sprite_x + 16)
+        HP_Y_OFF = -16 * scale     # Y offset from row for HP/MP area
+        HP_CUR_Y_OFF = 5 * scale   # current HP number Y offset from hp_y
+        HP_MAX_Y_OFF = -5 * scale  # max HP number Y offset from hp_y
+        MP_COL_OFF = 64 * scale    # MP column X offset from name_x
+        CURSOR_PARTY_OFF = 4 * scale  # cursor X offset from party_l
+
+        # ──── Menu panel offsets ────
+        TEXT_OFF = 12 * scale      # menu text X offset from left
+        CURSOR_OFF = 4 * scale     # cursor X offset from left
+
+        # ──── Gold bar ────
+        GOLD_TEXT_CX = MENU_W // 2  # gold text center X
+        GOLD_TEXT_CY = GOLD_H // 2  # gold text center Y
+
+        # ════════════════════════ DRAW ════════════════════════
+        # ── Party list — right 2/3, full height ──
+        self.draw_box(PARTY_L, SCREEN_W, 0, SCREEN_H, scale)
         for i, m in enumerate(self.party):
-            row_y = 146 * scale - i * 32 * scale
-            sprite_x = party_l + 10 * scale
-            _sprite_atlas.draw(m.name.lower(), sprite_x, row_y, scale)
-            name_x = sprite_x + 12 * scale
-            hp_color = (0, 180, 0) if m.hp > 0 else (100, 100, 100)
-            self.draw_text(m.name, name_x, row_y, COLORS["text"], fs)
-            hp_y = row_y - 9 * scale
-            self.draw_text(f"HP {m.hp}/{m.hp_max}", name_x, hp_y, hp_color, fs2)
+            row_y = PARTY_ROW_1 - i * PARTY_ROW_GAP
+            sprite_x = PARTY_L + SPRITE_X_OFF
+            _sprite_atlas.draw(f"{m.name.lower()}_dn_{self._anim_frame}", sprite_x, row_y, scale)
+            name_x = sprite_x + NAME_X_OFF
+            self.draw_text(m.name, name_x, row_y, COLORS["text"], FS)
+            hp_y = row_y + HP_Y_OFF
+            self.draw_text(f"HP{m.hp:4d}/", name_x, hp_y + HP_CUR_Y_OFF, COLORS["text"], FS_SM)
+            self.draw_text(f"  {m.hp_max:4d}", name_x, hp_y + HP_MAX_Y_OFF, COLORS["text"], FS_SM)
             if m.mp_max > 0:
-                self.draw_text(f"MP {m.mp}/{m.mp_max}", name_x + 70 * scale, hp_y,
-                               (80, 80, 200), fs2)
+                mp_x = name_x + MP_COL_OFF
+                self.draw_text(f"MP{m.mp:4d}/", mp_x, hp_y + HP_CUR_Y_OFF, COLORS["text"], FS_SM)
+                self.draw_text(f"  {m.mp_max:4d}", mp_x, hp_y + HP_MAX_Y_OFF, COLORS["text"], FS_SM)
+            if self._phase == "equip_char" and i == self._char_selection:
+                draw_cursor(PARTY_L + CURSOR_PARTY_OFF, row_y, scale, COLORS["cursor"])
 
         # ── Main menu — left 1/3, above gold bar ──
-        self.draw_box(0, menu_w, 20 * scale, 160 * scale, scale)
+        self.draw_box(MENU_L, MENU_W, GOLD_H, SCREEN_H, scale)
         for i, opt in enumerate(self.options):
-            y = 146 * scale - i * 32 * scale
-            c = COLORS["cursor"] if i == self.selection else COLORS["text"]
-            self.draw_text(opt, 12 * scale, y, c, fs)
-            if i == self.selection:
-                draw_cursor(4 * scale, y, scale, COLORS["cursor"])
+            y = MENU_ROW_1 - i * MENU_ROW_GAP
+            c = COLORS["cursor"] if (i == self.selection and self._phase == "menu") else COLORS["text"]
+            self.draw_text(opt, TEXT_OFF, y, c, FS)
+            if i == self.selection and self._phase == "menu":
+                draw_cursor(CURSOR_OFF, y, scale, COLORS["cursor"])
 
-        # ── Gold bar — bottom right ──
-        self.draw_box(120 * scale, 240 * scale, 0, 20 * scale, scale)
+        # ── Gold bar — bottom left ──
+        self.draw_box(MENU_L, MENU_W, GOLD_B, GOLD_H, scale)
         gold_text = self.text(
             "gold_bar",
             f"{self.engine.gold}GP",
-            180 * scale, 10 * scale,
-            gold_color, fs,
+            GOLD_TEXT_CX, GOLD_TEXT_CY,
+            COLORS["text"], FS,
             anchor_x="center", anchor_y="center",
         )
         gold_text.draw()
@@ -199,69 +261,104 @@ class ItemsMenuState(MenuState):
     # ── draw ─────────────────────────────────────────────
 
     def draw(self, w, h, scale):
-        fs = int(7 * scale)
-        fs2 = int(6 * scale)
-        box_l, box_r = 40 * scale, 200 * scale
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(7 * scale)        # heading / overlay title text
+        FS2 = int(6 * scale)       # item names / sub-text
+        FS_SM = int(5 * scale)     # help text
+        FS_TITLE = int(8 * scale)  # "ITEMS" title
 
+        # ──── Items panel ────
+        PANEL_L = 40 * scale       # left edge of items panel
+        PANEL_R = 200 * scale      # right edge of items panel
+        PANEL_B = 0 * scale        # bottom edge of items panel
+        PANEL_T = 160 * scale      # top edge of items panel
+
+        # ──── Title ────
+        TITLE_X = 120 * scale      # title center X
+        TITLE_Y = 152 * scale      # title Y
+
+        # ──── Empty state ────
+        EMPTY_X = 120 * scale      # "No items" center X
+        EMPTY_Y = 80 * scale       # "No items" center Y
+        EMPTY_COLOR = (150, 150, 150)
+
+        # ──── Item rows ────
+        ITEM_ROW_1 = 140 * scale   # first item Y
+        ITEM_GAP = 17 * scale      # gap between items
+        ITEM_CURSOR_OFF = 8 * scale   # cursor X offset from panel left
+        ITEM_TEXT_OFF = 16 * scale    # text X offset from panel left
+        ITEM_MAX_VISIBLE = 8       # max items shown
+
+        # ──── Help text ────
+        HELP_X = 120 * scale       # help text center X
+        HELP_Y = 8 * scale         # help text Y
+        HELP_COLOR = (150, 150, 150)
+
+        # ──── Targeting overlay ────
+        OL_L = 50 * scale          # overlay left edge
+        OL_R = 190 * scale         # overlay right edge
+        OL_B = 24 * scale          # overlay bottom
+        OL_T = 120 * scale         # overlay top
+        OL_TITLE_OFF = -10 * scale # overlay title Y offset from top (ol_t + offset)
+        OL_FIRST_Y_OFF = -28 * scale  # first target Y offset from ol_t
+        OL_TARGET_GAP = 18 * scale    # gap between target rows
+        OL_CURSOR_OFF = 8 * scale     # cursor X offset from ol_l
+        OL_NAME_OFF = 16 * scale      # name X offset from ol_l
+        OL_HP_OFF = 64 * scale        # HP column X offset from ol_l
+        OL_Y_ADJ = 3 * scale          # small Y adjustment for text alignment
+
+        # ════════════════════════ DRAW ════════════════════════
         # ── Items list panel ──
-        self.draw_box(box_l, box_r, 0, 160 * scale, scale)
-        title_t = self.text(
-            "items_title", "ITEMS",
-            120 * scale, 152 * scale, COLORS["text"], int(8 * scale),
-            anchor_x="center", anchor_y="center",
-        )
-        title_t.draw()
+        self.draw_box(PANEL_L, PANEL_R, PANEL_B, PANEL_T, scale)
 
         items = self.engine.inventory
         if not items:
             empty_t = self.text(
                 "items_empty", "No items",
-                120 * scale, 80 * scale, (150, 150, 150), fs,
+                EMPTY_X, EMPTY_Y, EMPTY_COLOR, FS,
                 anchor_x="center", anchor_y="center",
             )
             empty_t.draw()
         else:
-            for i, entry in enumerate(items[:8]):
-                y = 140 * scale - i * 17 * scale
+            for i, entry in enumerate(items[:ITEM_MAX_VISIBLE]):
+                y = ITEM_ROW_1 - i * ITEM_GAP
                 item_def = get_item(entry["id"])
                 name = item_def["name"] if item_def else entry["id"]
                 c = COLORS["cursor"] if i == self.selection else COLORS["text"]
                 if i == self.selection and not self._targeting:
-                    draw_cursor(box_l + 8 * scale, y, scale, COLORS["cursor"])
-                self.draw_text(f"{name} x{entry['qty']}", box_l + 16 * scale, y, c, fs2)
+                    draw_cursor(PANEL_L + ITEM_CURSOR_OFF, y, scale, COLORS["cursor"])
+                self.draw_text(f"{name} x{entry['qty']}", PANEL_L + ITEM_TEXT_OFF, y, c, FS2)
 
-        help_t = self.text(
-            "items_help",
-            "[Z] Use  [X] Back",
-            120 * scale, 8 * scale,
-            (150, 150, 150), int(5 * scale),
-            anchor_x="center", anchor_y="center",
-        )
-        help_t.draw()
+        #help_t = self.text(
+            #"items_help",
+            #"[Z] Use  [X] Back",
+            #HELP_X, HELP_Y,
+            #HELP_COLOR, FS_SM,
+            #anchor_x="center", anchor_y="center",
+        #)
+        #help_t.draw()
 
         # ── Targeting overlay ──
         if self._targeting:
-            ol_l = 60 * scale
-            ol_r = 180 * scale
-            ol_b = 40 * scale
-            ol_t = 120 * scale
-            self.draw_box(ol_l, ol_r, ol_b, ol_t, scale)
+            OL_CX = (OL_L + OL_R) // 2
+            OL_TITLE_Y = OL_T + OL_TITLE_OFF
+            self.draw_box(OL_L, OL_R, OL_B, OL_T, scale)
             target_title = self.text(
                 "items_target_title", "Use on whom?",
-                (ol_l + ol_r) // 2, ol_t - 10 * scale,
-                COLORS["text"], fs,
+                OL_CX, OL_TITLE_Y,
+                COLORS["text"], FS,
                 anchor_x="center", anchor_y="center",
             )
             target_title.draw()
             for i, m in enumerate(self.party):
-                y = ol_t - 28 * scale - i * 17 * scale
+                y = OL_T + OL_FIRST_Y_OFF - i * OL_TARGET_GAP
                 c = COLORS["cursor"] if i == self._target_idx else COLORS["text"]
                 if i == self._target_idx:
-                    draw_cursor(ol_l + 8 * scale, y, scale, COLORS["cursor"])
-                hp_str = f"HP {m.hp}/{m.hp_max}"
-                alive_color = (0, 180, 0) if m.hp > 0 else (100, 100, 100)
-                self.draw_text(m.name, ol_l + 16 * scale, y, c, fs2)
-                self.draw_text(hp_str, ol_l + 64 * scale, y, alive_color, fs2)
+                    draw_cursor(OL_L + OL_CURSOR_OFF, y, scale, COLORS["cursor"])
+                self.draw_text(m.name, OL_L + OL_NAME_OFF, y + OL_Y_ADJ, c, FS2)
+                self.draw_text(f"HP{m.hp:4d}", OL_L + OL_HP_OFF, y + OL_Y_ADJ, COLORS["text"], FS2)
+                self.draw_text(f"  {m.hp_max:4d}", OL_L + OL_HP_OFF, y - OL_Y_ADJ, COLORS["text"], FS2)
 
 
 # ======================================================================
@@ -271,58 +368,102 @@ class ItemsMenuState(MenuState):
 class StatusMenuState(MenuState):
     """Full-screen party status overview — 4 stacked panels."""
 
+    def __init__(self, menu):
+        super().__init__(menu)
+        # ── Sprite animation ──
+        self._anim_interval = 8 / 60  # seconds between sprite toggles (~15fps); increase to slow down
+        self._anim_next_toggle = time.monotonic() + self._anim_interval
+        self._anim_frame = 0
+
     def update(self, inp):
+        now = time.monotonic()
+        if now >= self._anim_next_toggle:
+            self._anim_next_toggle = now + self._anim_interval
+            self._anim_frame = 1 - self._anim_frame
         if inp.is_just_pressed(key.X):
             self.menu.set_state("main")
 
     def draw(self, w, h, scale):
-        fs = int(7 * scale)
-        fs2 = int(6 * scale)
-        panel_l = 4 * scale
-        panel_r = 236 * scale
-        panel_h = 34 * scale
-        gap = 2 * scale
-        title_y = 155 * scale
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(7 * scale)        # names / level
+        FS2 = int(6 * scale)       # stats
+        FS_TITLE = int(8 * scale)  # "STATUS" title
+        FS_SM = int(5 * scale)     # help text
 
+        # ──── Panel dimensions ────
+        PANEL_L = 4 * scale        # left edge of each member panel
+        PANEL_R = 236 * scale      # right edge of each member panel
+        PANEL_H = 34 * scale       # height of each member panel
+        PANEL_GAP = 2 * scale      # gap between panels
+
+        # ──── Title ────
+        TITLE_X = 120 * scale      # title center X
+        TITLE_Y = 155 * scale      # title Y
+
+        # ──── First panel bottom ────
+        FIRST_PB = 14 * scale      # first panel bottom edge
+
+        # ──── Within each member panel ────
+        SPRITE_OFF = 12 * scale    # sprite X offset from panel left
+        SPRITE_Y_OFF = 2 * scale   # sprite Y offset above row center
+        TEXT_X_OFF = 24 * scale    # name text X offset from panel left
+
+        # ──── Row Y offsets from panel vertical center (row_cy) ────
+        R1_OFF = 12 * scale        # row 1 (name / HP / ATK) — above center
+        R2_OFF = 4 * scale         # row 2 (HP max / DEF)
+        R3_OFF = -4 * scale        # row 3 (MP / MAG)
+        R4_OFF = -12 * scale       # row 4 (MP max / SPD)
+
+        # ──── Column X offsets from text start (tx) ────
+        COL1_OFF = 64 * scale      # HP/MP column
+        COL2_OFF = 124 * scale     # ATK/DEF/MAG/SPD column
+
+        # ──── Help text ────
+        HELP_X = 120 * scale       # help center X
+        HELP_Y = 4 * scale         # help Y
+        HELP_COLOR = (150, 150, 150)
+
+        # ════════════════════════ DRAW ════════════════════════
         title_t = self.text(
             "status_title", "STATUS",
-            120 * scale, title_y, COLORS["text"], int(8 * scale),
+            TITLE_X, TITLE_Y, COLORS["text"], FS_TITLE,
             anchor_x="center", anchor_y="center",
         )
         title_t.draw()
 
         for i, m in enumerate(self.party):
             # Panel box
-            pb = 14 * scale + i * (panel_h + gap)
-            pt = pb + panel_h
-            self.draw_box(panel_l, panel_r, pb, pt, scale)
+            pb = FIRST_PB + i * (PANEL_H + PANEL_GAP)
+            pt = pb + PANEL_H
+            self.draw_box(PANEL_L, PANEL_R, pb, pt, scale)
 
             row_cy = (pb + pt) // 2
             # Sprite
-            _sprite_atlas.draw(m.name.lower(), panel_l + 12 * scale, row_cy + 2 * scale, scale)
-            tx = panel_l + 24 * scale
+            _sprite_atlas.draw(f"{m.name.lower()}_dn_{self._anim_frame}", PANEL_L + SPRITE_OFF, row_cy + SPRITE_Y_OFF, scale)
+            tx = PANEL_L + TEXT_X_OFF
 
-            # Row 1: name + LV
-            r1y = row_cy + 7 * scale
-            r2y = row_cy - 7 * scale
+            # 4 rows for name + two-line HP/MP + stats
+            r1y = row_cy + R1_OFF
+            r2y = row_cy + R2_OFF
+            r3y = row_cy + R3_OFF
+            r4y = row_cy + R4_OFF
 
-            self.draw_text(f"{m.name}  LV{m.lvl}", tx, r1y, COLORS["text"], fs)
+            self.draw_text(f"{m.name} LV{m.lvl}", tx, r1y, COLORS["text"], FS)
 
-            # HP / MP
-            hp_color = (0, 180, 0) if m.hp > 0 else (100, 100, 100)
-            self.draw_text(f"HP {m.hp}/{m.hp_max}", tx + 64 * scale, r1y, hp_color, fs2)
-            mp_color = (80, 80, 200) if m.mp_max > 0 else (100, 100, 100)
-            self.draw_text(f"MP {m.mp}/{m.mp_max}", tx + 64 * scale, r2y, mp_color, fs2)
+            self.draw_text(f"HP{m.hp:4d}", tx + COL1_OFF, r1y, COLORS["text"], FS2)
+            self.draw_text(f"  {m.hp_max:4d}", tx + COL1_OFF, r2y, COLORS["text"], FS2)
+            self.draw_text(f"MP{m.mp:4d}", tx + COL1_OFF, r3y, COLORS["text"], FS2)
+            self.draw_text(f"  {m.mp_max:4d}", tx + COL1_OFF, r4y, COLORS["text"], FS2)
 
-            # ATK / DEF / MAG / SPD
-            self.draw_text(f"ATK {m.atk:3d}  DEF {m.def_:3d}", tx + 124 * scale, r1y,
-                           COLORS["text"], fs2)
-            self.draw_text(f"MAG {m.mag:3d}  SPD {m.spd:3d}", tx + 124 * scale, r2y,
-                           COLORS["text"], fs2)
+            self.draw_text(f"ATK {m.atk:3d}", tx + COL2_OFF, r1y, COLORS["text"], FS2)
+            self.draw_text(f"DEF {m.def_:3d}", tx + COL2_OFF, r2y, COLORS["text"], FS2)
+            self.draw_text(f"MAG {m.mag:3d}", tx + COL2_OFF, r3y, COLORS["text"], FS2)
+            self.draw_text(f"SPD {m.spd:3d}", tx + COL2_OFF, r4y, COLORS["text"], FS2)
 
         help_t = self.text(
             "status_help", "[X] Back",
-            120 * scale, 4 * scale, (150, 150, 150), int(5 * scale),
+            HELP_X, HELP_Y, HELP_COLOR, FS_SM,
             anchor_x="center", anchor_y="center",
         )
         help_t.draw()
@@ -338,8 +479,16 @@ class EquipCharSelectState(MenuState):
     def __init__(self, menu):
         super().__init__(menu)
         self.selection = 0
+        # ── Sprite animation ──
+        self._anim_interval = 8 / 60  # seconds between sprite toggles (~15fps); increase to slow down
+        self._anim_next_toggle = time.monotonic() + self._anim_interval
+        self._anim_frame = 0
 
     def update(self, inp):
+        now = time.monotonic()
+        if now >= self._anim_next_toggle:
+            self._anim_next_toggle = now + self._anim_interval
+            self._anim_frame = 1 - self._anim_frame
         if inp.is_just_pressed(key.DOWN):
             self.selection = (self.selection + 1) % len(self.party)
         elif inp.is_just_pressed(key.UP):
@@ -350,34 +499,64 @@ class EquipCharSelectState(MenuState):
             self.menu.set_state("main")
 
     def draw(self, w, h, scale):
-        fs = int(7 * scale)
-        fs2 = int(6 * scale)
-        party_l = 40 * scale
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(7 * scale)        # character names
+        FS2 = int(6 * scale)       # (unused currently)
+        FS_SM = int(5 * scale)     # HP numbers
+        FS_TITLE = int(8 * scale)  # title
+        FS_HELP = int(5 * scale)   # help text
 
+        # ──── Panel / screen dimensions ────
+        SCREEN_R = 240 * scale     # right edge of full screen
+        PARTY_L = 40 * scale       # left edge of party list panel
+        PANEL_B = 0 * scale        # panel bottom
+        PANEL_T = 150 * scale      # panel top (leaves room for help)
+
+        # ──── Title ────
+        TITLE_X = 120 * scale      # title center X
+        TITLE_Y = 155 * scale      # title Y
+
+        # ──── Party rows ────
+        ROW_1 = 138 * scale        # first member Y
+        ROW_GAP = 32 * scale       # gap between rows
+        SPRITE_OFF = 24 * scale    # sprite X offset from party_l
+        NAME_OFF = 16 * scale      # name X offset from sprite (sprite_x + 16)
+        CURSOR_OFF = 4 * scale     # cursor X offset from party_l
+        HP_Y_OFF = -16 * scale     # Y offset from row for HP area
+        HP_CUR_OFF = 5 * scale     # current HP Y offset from hp_y
+        HP_MAX_OFF = -5 * scale    # max HP Y offset from hp_y
+
+        # ──── Help text ────
+        HELP_X = 120 * scale       # help center X
+        HELP_Y = 8 * scale         # help Y
+        HELP_COLOR = (150, 150, 150)
+
+        # ════════════════════════ DRAW ════════════════════════
         title_t = self.text(
             "equip_cs_title", "Select character",
-            120 * scale, 155 * scale, COLORS["text"], int(8 * scale),
+            TITLE_X, TITLE_Y, COLORS["text"], FS_TITLE,
             anchor_x="center", anchor_y="center",
         )
         title_t.draw()
 
-        self.draw_box(party_l, 240 * scale, 20 * scale, 150 * scale, scale)
+        self.draw_box(PARTY_L, SCREEN_R, PANEL_B, PANEL_T, scale)
         for i, m in enumerate(self.party):
-            row_y = 138 * scale - i * 32 * scale
-            sprite_x = party_l + 10 * scale
-            _sprite_atlas.draw(m.name.lower(), sprite_x, row_y, scale)
-            name_x = sprite_x + 14 * scale
+            row_y = ROW_1 - i * ROW_GAP
+            sprite_x = PARTY_L + SPRITE_OFF
+            _sprite_atlas.draw(f"{m.name.lower()}_dn_{self._anim_frame}", sprite_x, row_y, scale)
+            name_x = sprite_x + NAME_OFF
             c = COLORS["cursor"] if i == self.selection else COLORS["text"]
             if i == self.selection:
-                draw_cursor(party_l + 4 * scale, row_y, scale, COLORS["cursor"])
-            hp_color = (0, 180, 0) if m.hp > 0 else (100, 100, 100)
-            self.draw_text(m.name, name_x, row_y, c, fs)
-            self.draw_text(f"HP {m.hp}/{m.hp_max}", name_x + 70 * scale, row_y,
-                           hp_color, fs2)
+                draw_cursor(PARTY_L + CURSOR_OFF, row_y, scale, COLORS["cursor"])
+            self.draw_text(m.name, name_x, row_y, c, FS)
+            hp_y = row_y + HP_Y_OFF
+            self.draw_text(f"HP{m.hp:4d}", name_x, hp_y + HP_CUR_OFF, COLORS["text"], FS_SM)
+            self.draw_text(f"  {m.hp_max:4d}", name_x, hp_y + HP_MAX_OFF, COLORS["text"], FS_SM)
 
         help_t = self.text(
             "equip_cs_help", "[Z] Select  [X] Back",
-            120 * scale, 8 * scale, (150, 150, 150), int(5 * scale),
+            HELP_X, HELP_Y, HELP_COLOR, FS_HELP,
             anchor_x="center", anchor_y="center",
         )
         help_t.draw()
@@ -400,6 +579,10 @@ class EquipDetailState(MenuState):
         self.phase = "slots"  # "slots" | "items"
         self._preview_stats = None  # (preview_atk, preview_def, preview_mag, change_atk, change_def, change_mag) | None
         self._slot_selection = 0
+        # ── Sprite animation ──
+        self._anim_interval = 8 / 60  # seconds between sprite toggles (~15fps); increase to slow down
+        self._anim_next_toggle = time.monotonic() + self._anim_interval
+        self._anim_frame = 0
 
     # ── helpers ──────────────────────────────────────────
 
@@ -460,6 +643,10 @@ class EquipDetailState(MenuState):
     # ── update ───────────────────────────────────────────
 
     def update(self, inp):
+        now = time.monotonic()
+        if now >= self._anim_next_toggle:
+            self._anim_next_toggle = now + self._anim_interval
+            self._anim_frame = 1 - self._anim_frame
         if self.phase == "slots":
             self._update_slots(inp)
         elif self.phase == "items":
@@ -477,7 +664,7 @@ class EquipDetailState(MenuState):
                 self.selection = 0
                 self._preview_stats = None
         elif inp.is_just_pressed(key.X):
-            self.menu.set_state("equip")
+            self.menu.set_state("main", phase="equip_char", char_idx=self.char_idx)
 
     def _update_items(self, inp):
         items = self._equip_items()
@@ -504,63 +691,163 @@ class EquipDetailState(MenuState):
             else:
                 self._preview_stats = None
 
-    # ── draw ─────────────────────────────────────────────
+    # ── draw sub-methods ─────────────────────────────────
 
     def _draw_panel1_stats(self, scale):
         """Panel 1 — character stats (left 1/2, bottom 3/4)."""
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(6 * scale)        # stat label text
+
+        # ──── Panel box ────
+        BOX_L = 0 * scale          # left edge
+        BOX_R = 120 * scale        # right edge
+        BOX_B = 0 * scale          # bottom edge
+        BOX_T = 120 * scale        # top edge
+
+        # ──── Stat row positions ────
+        TEXT_X = 8 * scale         # X offset for all stat text
+        ROW_1_Y = 104 * scale      # STR row
+        ROW_2_Y = 92 * scale       # DEF row
+        ROW_3_Y = 80 * scale       # AGI row
+        ROW_4_Y = 68 * scale       # MAG row
+
+        # ════════════════════════ DRAW ════════════════════════
         member = self._member
-        fs = int(6 * scale)
-        self.draw_box(0, 120 * scale, 0, 120 * scale, scale)
+        self.draw_box(BOX_L, BOX_R, BOX_B, BOX_T, scale)
         if self._preview_stats:
             pa, pd, pm, da, dd, dm = self._preview_stats
-            self.draw_text(f"STR: {member.atk} -> {pa}", 8 * scale, 104 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"DEF: {member.def_} -> {pd}", 8 * scale, 92 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"AGI: {member.spd}", 8 * scale, 80 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"MAG: {member.mag} -> {pm}", 8 * scale, 68 * scale,
-                           COLORS["text"], fs)
+            self.draw_text(f"STR: {member.atk} -> {pa}", TEXT_X, ROW_1_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"DEF: {member.def_} -> {pd}", TEXT_X, ROW_2_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"AGI: {member.spd}", TEXT_X, ROW_3_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"MAG: {member.mag} -> {pm}", TEXT_X, ROW_4_Y,
+                           COLORS["text"], FS)
         else:
-            self.draw_text(f"STR: {member.atk}", 8 * scale, 104 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"DEF: {member.def_}", 8 * scale, 92 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"AGI: {member.spd}", 8 * scale, 80 * scale,
-                           COLORS["text"], fs)
-            self.draw_text(f"MAG: {member.mag}", 8 * scale, 68 * scale,
-                           COLORS["text"], fs)
+            self.draw_text(f"STR: {member.atk}", TEXT_X, ROW_1_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"DEF: {member.def_}", TEXT_X, ROW_2_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"AGI: {member.spd}", TEXT_X, ROW_3_Y,
+                           COLORS["text"], FS)
+            self.draw_text(f"MAG: {member.mag}", TEXT_X, ROW_4_Y,
+                           COLORS["text"], FS)
 
     def _draw_panel2_identity(self, scale):
         """Panel 2 — character identifier (left 1/3, top 1/4)."""
-        member = self._member
-        fs = int(6 * scale)
-        fs_sm = int(5 * scale)
-        self.draw_box(0, 80 * scale, 120 * scale, 160 * scale, scale)
-        _sprite_atlas.draw(member.name.lower(), 28 * scale, 150 * scale, scale)
-        self.draw_text(member.name, 44 * scale, 150 * scale, COLORS["text"], fs)
-        hp_color = (0, 180, 0) if member.hp > 0 else (100, 100, 100)
-        self.draw_text(f"HP {member.hp}/{member.hp_max}", 44 * scale, 138 * scale,
-                       hp_color, fs_sm)
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(6 * scale)        # character name
+        FS_SM = int(4 * scale)     # HP numbers
 
-    def _draw_panel3_items(self, scale):
-        """Panel 3 — equipment list (right 2/3, full height)."""
-        fs_sm = int(5 * scale)
-        self.draw_box(80 * scale, 240 * scale, 0, 160 * scale, scale)
+        # ──── Panel box ────
+        BOX_L = 0 * scale          # left edge
+        BOX_R = 80 * scale         # right edge
+        BOX_B = 120 * scale        # bottom edge
+        BOX_T = 160 * scale        # top edge
+
+        # ──── Elements ────
+        SPRITE_X = 16 * scale      # sprite X
+        SPRITE_Y = 140 * scale     # sprite Y
+        TEXT_X = 26 * scale        # name / HP text X
+        NAME_Y = 150 * scale       # name / sprite Y
+        HP_CUR_Y = 142 * scale     # current HP Y
+        HP_MAX_Y = 134 * scale     # max HP Y
+
+        # ════════════════════════ DRAW ════════════════════════
+        member = self._member
+        self.draw_box(BOX_L, BOX_R, BOX_B, BOX_T, scale)
+        _sprite_atlas.draw(f"{member.name.lower()}_dn_{self._anim_frame}", SPRITE_X, SPRITE_Y, scale)
+        self.draw_text(member.name, TEXT_X, NAME_Y, COLORS["text"], FS)
+        self.draw_text(f"HP{member.hp:4d}/", TEXT_X, HP_CUR_Y, COLORS["text"], FS_SM)
+        self.draw_text(f"  {member.hp_max:4d}", TEXT_X, HP_MAX_Y, COLORS["text"], FS_SM)
+
+    def _draw_panel3_equipped(self, scale):
+        """Panel 3 — currently equipped slots (right 2/3, full height)."""
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(6 * scale)        # slot name
+        FS_SM = int(4 * scale)     # equipped item name
+
+        # ──── Panel box ────
+        BOX_L = 80 * scale         # left edge
+        BOX_R = 240 * scale        # right edge
+        BOX_B = 0 * scale          # bottom edge
+        BOX_T = 160 * scale        # top edge — full height
+
+        # ──── Slot rows ────
+        ROW_1 = 148 * scale        # first slot Y (more room with full height)
+        ROW_GAP = 22 * scale       # gap between slot rows
+        CURSOR_X = 88 * scale      # cursor X
+        TEXT_X = 96 * scale        # text X
+        NAME_Y_OFF = 5 * scale     # slot name Y offset from row Y
+        ITEM_Y_OFF = -5 * scale    # item name Y offset from row Y
+
+        # ════════════════════════ DRAW ════════════════════════
+        member = self._member
+        self.draw_box(BOX_L, BOX_R, BOX_B, BOX_T, scale)
+        for i, slot_name in enumerate(self.slots):
+            y = ROW_1 - i * ROW_GAP
+            slot_key = self.slot_keys[i]
+            curr_id = getattr(member, slot_key)
+            curr_item = get_item(curr_id)
+            curr_name = curr_item["name"] if curr_item else "None"
+            if self.phase == "slots":
+                c = COLORS["cursor"] if i == self.selection else COLORS["text"]
+                if i == self.selection:
+                    draw_cursor(CURSOR_X, y, scale, COLORS["cursor"])
+            else:
+                c = COLORS["text"]
+            self.draw_text(f"{slot_name}:", TEXT_X, y + NAME_Y_OFF, c, FS)
+            self.draw_text(curr_name, TEXT_X, y + ITEM_Y_OFF,
+                           COLORS["text"], FS_SM)
+
+    def _draw_items_overlay(self, scale):
+        """Floating overlay — equipable item list (on top of panel 3)."""
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(6 * scale)        # header (slot name)
+        FS_SM = int(5 * scale)     # item name + bonuses
+
+        # ──── Floating box (inset) ────
+        BOX_L = 84 * scale
+        BOX_R = 238 * scale
+        BOX_B = 16 * scale
+        BOX_T = 152 * scale
+        OVERLAY_FILL = (248, 248, 248)  # slightly lighter than panel (232,232,232)
+
+        # ──── Header (slot name) ────
+        HEADER_X = 92 * scale
+        HEADER_Y = 144 * scale
+
+        # ──── Item rows ────
+        ROW_1 = 132 * scale
+        ROW_GAP = 14 * scale
+        MAX_VISIBLE = 8
+        CURSOR_X = 92 * scale
+        TEXT_X = 100 * scale
+
+        # ════════════════════════ DRAW ════════════════════════
+        self.draw_box(BOX_L, BOX_R, BOX_B, BOX_T, scale, fill=OVERLAY_FILL)
+        # Draw header
+        slot_name = self.slots[self.selection]
+        self.draw_text(f"Equip {slot_name}:", HEADER_X, HEADER_Y, COLORS["text"], FS)
+
         items = self._equip_items()
         if not items:
             return
-        visible = min(len(items), 9)
+        visible = min(len(items), MAX_VISIBLE)
         for i in range(visible):
             entry = items[i]
             item_def = get_item(entry["id"])
             if not item_def:
                 continue
-            y = 154 * scale - i * 14 * scale
-            c = COLORS["cursor"] if (self.phase == "items" and i == self.selection) \
-                else COLORS["text"]
-            if self.phase == "items" and i == self.selection:
-                draw_cursor(88 * scale, y, scale, COLORS["cursor"])
+            y = ROW_1 - i * ROW_GAP
+            c = COLORS["cursor"] if i == self.selection else COLORS["text"]
+            if i == self.selection:
+                draw_cursor(CURSOR_X, y, scale, COLORS["cursor"])
             parts = []
             if item_def.get("atk"):
                 parts.append(f"ATK+{item_def['atk']}")
@@ -569,48 +856,25 @@ class EquipDetailState(MenuState):
             if item_def.get("mag"):
                 parts.append(f"MAG+{item_def['mag']}")
             stat_str = " ".join(parts)
-            self.draw_text(f"{item_def['name']} {stat_str}", 96 * scale, y, c, fs_sm)
-
-    def _draw_panel4_equipped(self, scale):
-        """Panel 4 — currently equipped slots (right 2/3, bottom 3/4)."""
-        member = self._member
-        fs = int(6 * scale)
-        fs_sm = int(4 * scale)
-        self.draw_box(80 * scale, 240 * scale, 0, 120 * scale, scale)
-        for i, slot_name in enumerate(self.slots):
-            y = 112 * scale - i * 22 * scale
-            slot_key = self.slot_keys[i]
-            curr_id = getattr(member, slot_key)
-            curr_item = get_item(curr_id)
-            curr_name = curr_item["name"] if curr_item else "None"
-            if self.phase == "slots":
-                c = COLORS["cursor"] if i == self.selection else COLORS["text"]
-                if i == self.selection:
-                    draw_cursor(88 * scale, y, scale, COLORS["cursor"])
-            else:
-                c = COLORS["text"]
-            self.draw_text(f"{slot_name}:", 96 * scale, y + 5 * scale, c, fs)
-            self.draw_text(curr_name, 96 * scale, y - 5 * scale,
-                           (100, 100, 100), fs_sm)
+            self.draw_text(f"{item_def['name']} {stat_str}", TEXT_X, y, c, FS_SM)
 
     def draw(self, w, h, scale):
-        # Draw order: Panel 1 → Panel 2 → Panel 3 → Panel 4 (front)
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS_HELP = int(5 * scale)   # help text
+        HELP_COLOR = (150, 150, 150)
+
+        # ──── Help text ────
+        HELP_X = 160 * scale       # help center X
+        HELP_Y = 6 * scale         # help Y
+
+        # ════════════════════════ DRAW ════════════════════════
+        # Draw order: Panel 1 → Panel 2 → Panel 3 → Items overlay (front)
         self._draw_panel1_stats(scale)
         self._draw_panel2_identity(scale)
-        self._draw_panel3_items(scale)
-        self._draw_panel4_equipped(scale)
-
-        # Help text at very bottom
-        if self.phase == "slots":
-            help_text = "[Z] Equip  [X] Back"
-        else:
-            help_text = "[Z] Confirm  [X] Cancel"
-        help_t = self.text(
-            "equip_detail_help", help_text,
-            160 * scale, 6 * scale, (150, 150, 150), int(5 * scale),
-            anchor_x="center", anchor_y="center",
-        )
-        help_t.draw()
+        self._draw_panel3_equipped(scale)
+        if self.phase == "items":
+            self._draw_items_overlay(scale)
 
 
 # ======================================================================
@@ -649,45 +913,64 @@ class SaveMenuState(MenuState):
     def draw(self, w, h, scale):
         self._load_saves()
 
-        fs = int(7 * scale)
-        fs2 = int(6 * scale)
+        # ══════════════════════════ LAYOUT ══════════════════════════
+        # ──── Font sizes ────
+        FS = int(7 * scale)        # slot name
+        FS2 = int(6 * scale)       # play time text
+        FS_TITLE = int(8 * scale)  # "SAVE GAME" title
+        FS_HELP = int(5 * scale)   # help text
+        HELP_COLOR = (150, 150, 150)
 
+        # ──── Title ────
+        TITLE_X = 120 * scale      # title center X
+        TITLE_Y = 155 * scale      # title Y
+
+        # ──── Slots ────
+        SCREEN_L = 0 * scale       # left edge of slots
+        SCREEN_R = 240 * scale     # right edge of slots
+        SLOT_HEIGHTS = [53, 54, 53]  # heights of the 3 slots (sum = 160)
+        TEXT_INDENT = 16 * scale   # text X indent from slot left
+
+        # ──── Help text ────
+        HELP_X = 120 * scale       # help center X
+        HELP_Y = 4 * scale         # help Y
+
+        # ════════════════════════ DRAW ════════════════════════
         title_t = self.text(
             "save_title", "SAVE GAME",
-            120 * scale, 155 * scale, COLORS["text"], int(8 * scale),
+            TITLE_X, TITLE_Y, COLORS["text"], FS_TITLE,
             anchor_x="center", anchor_y="center",
         )
         title_t.draw()
 
-        slot_heights = [53, 54, 53]
         slot_top = 0
         for i in range(3):
-            sh = slot_heights[i] * scale
+            sh = SLOT_HEIGHTS[i] * scale
             tb = slot_top * scale
             tt = tb + sh
-            slot_top += slot_heights[i]
+            slot_top += SLOT_HEIGHTS[i]
 
             border = COLORS["cursor"] if i == self.selection else COLORS["box_border"]
-            self.draw_box(0, 240 * scale, int(tb), int(tt), scale, border=border)
+            self.draw_box(SCREEN_L, SCREEN_R, int(tb), int(tt), scale, border=border)
 
             cy = int((tb + tt) // 2)
             exists = any(s["slot"] == i for s in self._saves)
             if exists:
                 for s in self._saves:
                     if s["slot"] == i:
-                        self.draw_text(f"Slot {i + 1}: {s['name']}", 16 * scale,
-                                       cy + 6 * scale, COLORS["text"], fs)
+                        self.draw_text(f"Slot {i + 1}: {s['name']}", TEXT_INDENT,
+                                       cy + 6 * scale, COLORS["text"], FS)
                         self.draw_text(f"Play Time: {int(s['play_time'])}s",
-                                       16 * scale, cy - 7 * scale,
-                                       (100, 100, 100), fs2)
+                                       TEXT_INDENT, cy - 7 * scale,
+                                       COLORS["text"], FS2)
                         break
             else:
-                self.draw_text(f"Slot {i + 1}: [Empty]", 16 * scale, cy,
-                               COLORS["text"], fs)
+                self.draw_text(f"Slot {i + 1}: [Empty]", TEXT_INDENT, cy,
+                               COLORS["text"], FS)
 
         help_t = self.text(
             "save_help", "[Z] Save  [X] Back",
-            120 * scale, 4 * scale, (150, 150, 150), int(5 * scale),
+            HELP_X, HELP_Y, HELP_COLOR, FS_HELP,
             anchor_x="center", anchor_y="center",
         )
         help_t.draw()
