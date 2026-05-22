@@ -39,7 +39,7 @@ class GameWindow(arcade.Window):
         self.pressed_keys.discard(symbol)
 
     def setup(self):
-        from game.engine import GameEngine
+        from game.state import GameEngine
         import game.scenes.title
         import game.scenes.overworld
         import game.scenes.battle

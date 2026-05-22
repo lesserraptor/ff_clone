@@ -1,6 +1,6 @@
 import arcade
 from pyglet.window import key
-from game.engine import register_scene
+from game.scene_registry import register_scene
 from game.text import create_text
 from game.ui import COLORS
 
@@ -57,8 +57,9 @@ class TitleScene:
         return self._texts[key]
 
     def draw(self):
-        scale = self.engine.get_scale()
-        w, h = self.engine.get_size()
+        ctx = self.engine.get_layout_context()
+        scale = ctx.scale
+        w, h = ctx.width, ctx.height
         arc_x = w // 2
 
         arcade.draw_lrbt_rectangle_filled(0, w, 0, h, arcade.color.BLACK)

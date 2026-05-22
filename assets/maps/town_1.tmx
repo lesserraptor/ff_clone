@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.11" orientation="orthogonal" renderorder="right-down" width="15" height="10" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="3">
+  <properties>
+    <property name="name" type="string" value="Cornelia" /></properties><tileset firstgid="1" source="../hometown_tileset.tsj" /><layer id="1" name="Tile Layer 1" width="15" height="10">
+    <data encoding="csv">7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,5,5,5,5,5,5,16,5,5,5,5,5,5,7,7,5,5,5,5,5,5,5,5,5,5,5,5,5,7,7,5,5,5,5,5,5,5,5,5,5,5,5,5,7,7,7,7,7,5,5,5,5,5,5,5,7,7,7,7,7,3,3,7,5,5,5,5,5,5,5,7,3,3,7,7,3,3,7,5,5,5,5,5,5,5,7,3,3,7,7,3,3,7,5,5,5,5,5,5,5,7,3,3,7,7,3,3,7,7,7,7,66,66,66,7,7,3,3,7,7,7,7,7,7,7,7,66,66,66,7,7,7,7,7</data></layer><objectgroup id="2" name="NPCs">
+    <object id="1" x="64" y="32">
+      <properties>
+        <property name="name" type="string" value="King" /><property name="script_id" type="string" value="king_intro" /></properties><point /></object></objectgroup><objectgroup id="3" name="Exits">
+    <object id="2" x="112" y="16">
+      <properties>
+        <property name="dest_map" type="string" value="overworld_1" /><property name="dest_x" type="int" value="7" /><property name="dest_y" type="int" value="8" /><property name="direction" type="string" value="up" /></properties><point /></object></objectgroup></map>

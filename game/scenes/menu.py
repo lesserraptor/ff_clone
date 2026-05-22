@@ -1,13 +1,33 @@
 import arcade
 from pyglet.window import key
-from game.engine import register_scene
+from game.scene_registry import register_scene
 from game.text import create_text
 from game.ui import COLORS, draw_window
 
 
 @register_scene("menu")
 class MenuScene:
-    """Thin coordinator for menu sub-states."""
+    """Thin coordinator for menu sub-states.
+
+    NOTE — Known draw-signature inconsistency:
+
+    MenuScene is a scene coordinator (registered via @register_scene),
+    NOT a SceneRenderer. Its ``draw(self)`` matches the scene-coordinator
+    contract (no args, fetches size/scale from engine), like all other
+    scene coordinators in this codebase.
+
+    However, the 6 MenuState subclasses (MainMenuState, ItemsMenuState,
+    StatusMenuState, EquipCharSelectState, EquipDetailState, SaveMenuState)
+    each implement their own ``draw(self, w, h, scale)`` — a 3-param
+    signature that matches *neither* the scene-coordinator contract nor
+    the ``SceneRenderer.draw(self, model, scale, width, height, **kwargs)``
+    protocol defined in ``game/renderer.py``.
+
+    The proper fix would extract a MenuRenderer class conforming to
+    SceneRenderer, so menu states receive a consistent model object.
+    That refactor is deferred; for now this inconsistency is knowingly
+    accepted.
+    """
 
     _state_classes = None
 
@@ -89,12 +109,13 @@ class MenuScene:
             self.current_state.update(self.engine.input)
 
     def draw(self):
-        w, h = self.engine.get_size()
-        scale = self.engine.get_scale()
+        ctx = self.engine.get_layout_context()
+        w, h = ctx.width, ctx.height
+        scale = ctx.scale
 
         arcade.draw_lrbt_rectangle_filled(0, w, 0, h, (0, 0, 50))
 
         if self.current_state:
             self.current_state.draw(w, h, scale)
 
-        self._prev_scale = scale
+        self._prev_scale = ctx.scale

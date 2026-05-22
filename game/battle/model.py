@@ -1,9 +1,23 @@
 import random
+from dataclasses import dataclass
 from typing import Optional
 from game.battle.dataclasses import (
     Actor, Action, ActionType, BattleEvent, Spell, SpellType, SpellTarget
 )
 from game.battle.engine import SpeedQueue, calc_damage
+
+
+@dataclass(frozen=True)
+class BattleRenderState:
+    """Read-only snapshot of model state for renderers."""
+    enemies: tuple
+    party: tuple
+    spells: dict
+    item_data: dict
+    rewards: dict
+    current_action: Optional[Action]
+    living_enemies: tuple
+    living_party: tuple
 
 
 class BattleModel:
@@ -70,6 +84,18 @@ class BattleModel:
 
     def get_living_enemies(self) -> list[Actor]:
         return [e for e in self.enemies if e.alive]
+
+    def get_render_state(self) -> BattleRenderState:
+        return BattleRenderState(
+            enemies=tuple(self.enemies),
+            party=tuple(self.party),
+            spells=dict(self.spells),
+            item_data=dict(self.item_data),
+            rewards=dict(self.rewards),
+            current_action=self.current_action,
+            living_enemies=tuple(self.get_living_enemies()),
+            living_party=tuple(self.get_living_party()),
+        )
 
     def prepare_enemy_turn(self):
         """Only enemies act (when escape attempt fails)."""
@@ -401,24 +427,4 @@ class BattleModel:
         defeat = not any(p.alive for p in self.party)
         return victory, defeat
 
-    def apply_level_ups(self) -> list[BattleEvent]:
-        events = []
-        for member in self.get_living_party():
-            while member.exp >= member.exp_next:
-                member.exp -= member.exp_next
-                member.lvl += 1
-                member.exp_next = int(member.exp_next * 1.5)
-                member.hp_max += 5
-                member.hp = member.hp_max
-                member.atk += 2
-                member.def_ += 1
-                events.append(BattleEvent(
-                    message=f"{member.name} levels up!",
-                    actor=member,
-                    is_level_up=True,
-                    level_ups=1,
-                ))
-        return events
 
-    def to_party_data(self) -> list[dict]:
-        return [actor_to_dict(p) for p in self.party]

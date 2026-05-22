@@ -2,7 +2,8 @@ import random
 import json
 import os
 from pyglet.window import key
-from game.engine import register_scene, ITEM_DATA
+from game.scene_registry import register_scene
+from game.data import ITEM_DATA
 from game.battle.model import BattleModel
 from game.battle.renderer import BattleRenderer
 from game.battle.states import (
@@ -25,7 +26,7 @@ class BattleScene:
     def __init__(self, engine):
         self.engine = engine
         self.enemy_data = load_enemies()
-        import game.engine; self.spells = game.engine.SPELL_DATA
+        import game.data; self.spells = game.data.SPELL_DATA
 
         party_data = []
         for p in engine.party:
@@ -320,29 +321,24 @@ class BattleScene:
         return message
 
     def _apply_victory(self):
+        from game.stats import apply_level_ups_to_actors
+
         xp = self.model.rewards["xp"]
         gold = self.model.rewards["gold"]
-        
+
         for p in self.model.party:
             if p.alive:
                 p.exp += xp
-                while p.exp >= p.exp_next:
-                    p.exp -= p.exp_next
-                    p.lvl += 1
-                    p.exp_next = int(p.exp_next * 1.5)
-                    p.hp_max += 5
-                    p.hp = p.hp_max
-                    p.atk += 2
-                    p.def_ += 1
-        
+
+        apply_level_ups_to_actors(self.model.party)
+
         from game.dataclasses import PartyMember
         from game.battle.dataclasses import actor_to_dict
         self.engine.party = [PartyMember.from_dict(actor_to_dict(p)) for p in self.model.party]
         self.engine.gold = self.engine.gold + gold
 
     def draw(self):
-        w, h = self.engine.get_size()
-        scale = self.engine.get_scale()
+        ctx = self.engine.get_layout_context()
 
         flash_state = None
         if isinstance(self.current_state_obj, FlashState):
@@ -351,11 +347,11 @@ class BattleScene:
         message = self._build_render_params()
 
         self.renderer.draw(
-            model=self.model,
+            self.model.get_render_state(),
             state=self.state,
-            scale=scale,
-            width=w,
-            height=h,
+            scale=ctx.scale,
+            width=ctx.width,
+            height=ctx.height,
             state_obj=self.current_state_obj,
             flash_state=flash_state,
             message_log=self.message_log,

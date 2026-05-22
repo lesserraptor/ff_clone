@@ -8,16 +8,69 @@ from game.ui import COLORS, draw_window
 from game.sprites import get_sprite_atlas
 from game.tiles import Tileset
 from game.tilemap import Tilemap
+from game.tiled_map_loader import load_tiled_map
+from game.scenes.overworld_layout import get_overworld_layout
+from game.renderer import SceneRenderer
+from dataclasses import dataclass
 
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "maps_converted.json")
-ENEMIES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "enemies.json")
+@dataclass(frozen=True)
+class OverworldRenderState:
+    """Read-only snapshot of overworld model state for renderers."""
+    current_map_id: str
+    map_data: dict
+    tile_defs: dict
+    player_tile_x: int
+    player_tile_y: int
+    target_tile_x: int
+    target_tile_y: int
+    is_moving: bool
+    move_progress: float
+    player_sprite_id: str
+    current_sprite_id: str
+    npc_dialog: list[str] | None
+    dialog_index: int
+
+
+PROJECT_ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+MAPS_DIR = os.path.join(PROJECT_ROOT, "assets", "maps")
+JSON_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "maps.json")
+ENEMIES_PATH = os.path.join(PROJECT_ROOT, "data", "enemies.json")
 
 
 def load_maps():
-    with open(DATA_PATH, "r") as f:
-        data = json.load(f)
-    return data.get("tile_defs", {}), data.get("maps", {}), data.get("scripts", {})
+    """Load maps from .tmx files + tile_defs and scripts from maps.json."""
+    # Load tile_defs, scripts, and original tile grids from maps.json
+    tile_defs = {}
+    scripts = {}
+    json_maps = {}
+    if os.path.exists(JSON_DATA_PATH):
+        with open(JSON_DATA_PATH, "r") as f:
+            data = json.load(f)
+        tile_defs = data.get("tile_defs", {})
+        scripts = data.get("scripts", {})
+        json_maps = data.get("maps", {})
+
+    # Load map grids from .tmx files (gids, npcs, exits)
+    maps = {}
+    if os.path.isdir(MAPS_DIR):
+        for filename in sorted(os.listdir(MAPS_DIR)):
+            if not filename.endswith(".tmx"):
+                continue
+            map_id = filename.replace(".tmx", "")
+            tmx_path = os.path.join(MAPS_DIR, filename)
+            try:
+                map_data = load_tiled_map(tmx_path)
+                # Override tiles with original logical tile IDs from maps.json
+                # (GID→tile_id reverse mapping is lossy due to tree expansion)
+                json_orig = json_maps.get(map_id)
+                if json_orig and "tiles" in json_orig:
+                    map_data["tiles"] = json_orig["tiles"]
+                maps[map_id] = map_data
+            except Exception as exc:
+                print(f"Warning: failed to load {filename}: {exc}")
+
+    return tile_defs, maps, scripts
 
 
 def load_enemies():
@@ -35,9 +88,11 @@ class OverworldModel:
         "left": "lf",
     }
 
-    def __init__(self, engine):
-        self.tile_defs, self.maps, self.scripts = load_maps()
-        self.enemy_data = load_enemies()
+    def __init__(self, engine, tile_defs, maps, scripts, enemy_data):
+        self.tile_defs = tile_defs
+        self.maps = maps
+        self.scripts = scripts
+        self.enemy_data = enemy_data
         self.current_map_id = engine.current_map
         self.map_data = None
 
@@ -112,6 +167,24 @@ class OverworldModel:
         """Return frame sprite ID based on facing and walk animation."""
         dir_code = self.FACING_MAP.get(self.facing, self.facing)
         return f"{self.class_name}_{dir_code}_{self.walk_frame}"
+
+    def get_render_state(self) -> OverworldRenderState:
+        """Return immutable snapshot of current model state for rendering."""
+        return OverworldRenderState(
+            current_map_id=self.current_map_id,
+            map_data=self.map_data,
+            tile_defs=self.tile_defs,
+            player_tile_x=self.player_tile_x,
+            player_tile_y=self.player_tile_y,
+            target_tile_x=self.target_tile_x,
+            target_tile_y=self.target_tile_y,
+            is_moving=self.is_moving,
+            move_progress=self.move_progress,
+            player_sprite_id=self.player_sprite_id,
+            current_sprite_id=self.get_current_sprite_id(),
+            npc_dialog=self.npc_dialog,
+            dialog_index=self.dialog_index,
+        )
 
     # ── NPC interaction ──────────────────────────────────
 
@@ -221,7 +294,7 @@ class OverworldModel:
         return None
 
 
-class OverworldRenderer:
+class OverworldRenderer(SceneRenderer):
     """All drawing for overworld. Caches text objects."""
 
     def __init__(self):
@@ -265,14 +338,16 @@ class OverworldRenderer:
             self._tilemap_map_id = model.current_map_id
         return self._tilemap
 
-    def draw(self, model, scale, width, height):
+    def draw(self, model, scale: float, width: int, height: int, **kwargs):
+        layout = get_overworld_layout(scale)
+
         # ── background ──
         arcade.draw_lrbt_rectangle_filled(0, width, 0, height, (50, 50, 50))
 
         if not model.map_data:
             return
 
-        tile_size = 16 * scale
+        tile_size = layout.tile_size
         map_w = model.map_data["width"]
         map_h = model.map_data["height"]
         offset_x = (width - map_w * tile_size) / 2
@@ -300,8 +375,8 @@ class OverworldRenderer:
             npc_px = offset_x + npc["x"] * tile_size + tile_size / 2
             npc_py = offset_y + (map_h - 1 - npc["y"]) * tile_size + tile_size / 2
             arcade.draw_lrbt_rectangle_filled(
-                npc_px - 6 * scale, npc_px + 6 * scale,
-                npc_py - 6 * scale, npc_py + 6 * scale,
+                npc_px - layout.npc_box_half, npc_px + layout.npc_box_half,
+                npc_py - layout.npc_box_half, npc_py + layout.npc_box_half,
                 arcade.color.RED,
             )
 
@@ -339,7 +414,7 @@ class OverworldRenderer:
             atlas.draw(model.player_sprite_id, px, py, scale)
         else:
             # Fallback: white rectangle
-            player_size = int(10 * scale)
+            player_size = layout.player_fallback_size
             arcade.draw_lrbt_rectangle_filled(
                 px - player_size // 2, px + player_size // 2,
                 py - player_size // 2, py + player_size // 2,
@@ -347,10 +422,10 @@ class OverworldRenderer:
             )
 
         # ── map name ──
-        font_size = int(6 * scale)
+        font_size = layout.map_name_font_size
         self._map_name_text = self._get_text(
             "map_name", model.map_data["name"],
-            width // 2, 8 * scale,
+            width // 2, layout.map_name_y,
             COLORS["text"], font_size,
             anchor_x="center", anchor_y="center",
         )
@@ -358,13 +433,13 @@ class OverworldRenderer:
 
         # ── dialog box ──
         if model.npc_dialog:
-            box_h = 40 * scale
-            box_y = 20 * scale
-            draw_window(16 * scale, box_y, width - 32 * scale, box_h, scale)
+            box_h = layout.dialog_box_h
+            box_y = layout.dialog_box_y
+            draw_window(layout.dialog_box_margin_x, box_y, width - 2 * layout.dialog_box_margin_x, box_h, scale)
             dialog_text = model.npc_dialog[model.dialog_index]
             self._dialog_text = self._get_text(
                 f"dialog_{model.dialog_index}", dialog_text,
-                24 * scale, box_y + 8 * scale,
+                layout.dialog_text_x, box_y + layout.dialog_text_y_offset,
                 COLORS["text"], font_size,
                 anchor_y="top",
             )
@@ -372,7 +447,7 @@ class OverworldRenderer:
             if model.dialog_index < len(model.npc_dialog) - 1:
                 self._arrow_text = self._get_text(
                     "arrow", "\u25bc",
-                    width - 24 * scale, box_y + 4 * scale,
+                    width - layout.dialog_text_x, box_y + layout.dialog_arrow_y_offset,
                     COLORS["text"], font_size,
                     anchor_x="center", anchor_y="center",
                 )

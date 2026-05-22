@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.11" orientation="orthogonal" renderorder="right-down" width="15" height="10" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="3">
+  <properties>
+    <property name="name" type="string" value="Marsh Cave" /></properties><tileset firstgid="1" source="../hometown_tileset.tsj" /><layer id="1" name="Tile Layer 1" width="15" height="10">
+    <data encoding="csv">7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,5,5,5,7,5,5,5,5,5,7,5,5,5,7,7,5,5,5,7,5,5,5,5,5,7,5,5,5,7,7,5,5,5,7,5,5,5,5,5,7,5,5,5,7,7,5,5,5,7,5,5,5,5,5,7,5,5,5,7,7,5,5,5,7,7,7,5,7,7,7,5,5,5,7,7,5,5,5,5,5,5,5,5,5,5,5,5,5,7,7,5,5,5,5,5,5,5,5,5,5,5,5,5,7,7,5,5,5,5,5,5,5,5,5,5,5,5,5,7,7,7,7,7,7,7,7,16,16,7,7,7,7,7,7</data></layer><objectgroup id="3" name="Exits">
+    <object id="1" x="112" y="128">
+      <properties>
+        <property name="dest_map" type="string" value="overworld_1" /><property name="dest_x" type="int" value="5" /><property name="dest_y" type="int" value="3" /><property name="direction" type="string" value="down" /></properties><point /></object><object id="2" x="128" y="128">
+      <properties>
+        <property name="dest_map" type="string" value="overworld_1" /><property name="dest_x" type="int" value="5" /><property name="dest_y" type="int" value="3" /><property name="direction" type="string" value="down" /></properties><point /></object></objectgroup></map>

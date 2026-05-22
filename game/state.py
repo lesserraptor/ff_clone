@@ -1,9 +1,8 @@
-import json
-from copy import deepcopy
+"""GameEngine — top-level game state + scene switching."""
 from game.dataclasses import PartyMember
 from game.input import InputState
-
-SCENES = {}
+from game.scene_registry import SCENES
+from game.stats import calc_party_stats
 
 DEFAULT_PARTY = [
     {"name": "Warrior", "job": "Warrior", "hp": 50, "hp_max": 50, "mp": 0, "mp_max": 0, "atk": 12, "def": 5, "lvl": 1, "exp": 0, "exp_next": 100,
@@ -19,67 +18,6 @@ DEFAULT_PARTY = [
      "weapon": "wooden_staff", "armor": "mage_robe", "helm": None, "shield": None, "accessory": None,
      "spells": ["cure", "raise", "esuna"], "status": []},
 ]
-
-ITEM_DATA = {}
-SPELL_DATA = {}
-WEAPON_DATA = {}
-ARMOR_DATA = {}
-
-def load_game_data():
-    global ITEM_DATA, SPELL_DATA, WEAPON_DATA, ARMOR_DATA
-    base = "data"
-    with open(f"{base}/items.json") as f:
-        items = json.load(f)
-    ITEM_DATA = items.get("items", {})
-    WEAPON_DATA = items.get("weapons", {})
-    ARMOR_DATA = items.get("armor", {})
-    with open(f"{base}/spells.json") as f:
-        spells = json.load(f)
-    SPELL_DATA = spells.get("spells", {})
-
-def get_item(id):
-    if id in ITEM_DATA:
-        return {**ITEM_DATA[id], "id": id, "category": "item"}
-    if id in WEAPON_DATA:
-        return {**WEAPON_DATA[id], "id": id, "category": "weapon"}
-    if id in ARMOR_DATA:
-        return {**ARMOR_DATA[id], "id": id, "category": "armor"}
-    return None
-
-def calc_party_stats(party):
-    for member in party:
-        atk_bonus = 0
-        def_bonus = 0
-        mag_bonus = 0
-        if member.weapon:
-            w = WEAPON_DATA.get(member.weapon, {})
-            atk_bonus += w.get("atk", 0)
-            mag_bonus += w.get("mag", 0)
-        if member.armor:
-            a = ARMOR_DATA.get(member.armor, {})
-            def_bonus += a.get("def", 0)
-            mag_bonus += a.get("mag", 0)
-        if member.helm:
-            h = ARMOR_DATA.get(member.helm, {})
-            def_bonus += h.get("def", 0)
-        if member.shield:
-            s = ARMOR_DATA.get(member.shield, {})
-            def_bonus += s.get("def", 0)
-        if member.accessory:
-            a = ARMOR_DATA.get(member.accessory, {})
-            def_bonus += a.get("def", 0)
-            mag_bonus += a.get("mag", 0)
-            atk_bonus += a.get("atk", 0)
-        member.atk = member.base_atk + atk_bonus
-        member.def_ = member.base_def + def_bonus
-        member.mag = mag_bonus
-
-
-def register_scene(name):
-    def decorator(cls):
-        SCENES[name] = cls
-        return cls
-    return decorator
 
 
 class GameEngine:
@@ -99,6 +37,7 @@ class GameEngine:
         self.player_y = 5
         self.equip_item_pool = []
         self._scene_cooldown = 0
+        self._event_queue: list = []
 
     def new_game(self):
         self.party = [PartyMember.from_dict(p) for p in DEFAULT_PARTY]
@@ -156,6 +95,32 @@ class GameEngine:
         self.input.reset_frame_state()
         self._scene_cooldown = 2
 
+    def push_event(self, event):
+        """Add an event to the queue for deferred processing."""
+        from game.events import GameEvent
+        self._event_queue.append(event)
+
+    def process_events(self):
+        """Process queued events. Called at end of update()."""
+        while self._event_queue:
+            event = self._event_queue.pop(0)
+            self._handle_event(event)
+
+    def _handle_event(self, event):
+        from game.events import GameEventType
+        if event.type == GameEventType.SCENE_CHANGE:
+            self.set_scene(event.data.get("name", ""))
+        elif event.type == GameEventType.BATTLE_START:
+            self.set_scene("battle")
+        elif event.type == GameEventType.EXIT_MAP:
+            if "dest_map" in event.data:
+                self.current_map = event.data["dest_map"]
+                self.player_x = event.data["dest_x"]
+                self.player_y = event.data["dest_y"]
+            self.set_scene("overworld")
+        elif event.type == GameEventType.MENU_OPEN:
+            self.set_scene("menu")
+
     def update(self, delta_time):
         self.play_time += delta_time
         if self._scene_cooldown > 0:
@@ -163,6 +128,7 @@ class GameEngine:
         self.input.update()
         if self.scene:
             self.scene.update(delta_time)
+        self.process_events()
 
     def draw(self):
         if self.scene:
@@ -173,6 +139,15 @@ class GameEngine:
 
     def get_size(self):
         return self.window.width, self.window.height
+
+    def get_layout_context(self):
+        from game.layout import LayoutContext
+        return LayoutContext(
+            scale=self.get_scale(),
+            width=self.get_size()[0],
+            height=self.get_size()[1],
+            me=int(self.get_scale()),
+        )
 
     def add_item(self, item_id, qty=1):
         for entry in self.inventory:

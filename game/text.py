@@ -1,6 +1,9 @@
 import os
 import pyglet
 
+FONT_FILENAME = "onion-pixel.otf"
+FONT_NAME = "Onion Pixel"
+
 
 def _get_assets_path():
     return os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
@@ -14,7 +17,7 @@ def _register_font():
     if _font_registered:
         return True
     
-    font_path = os.path.join(_get_assets_path(), "onion-pixel.otf")
+    font_path = os.path.join(_get_assets_path(), FONT_FILENAME)
     
     if os.path.exists(font_path):
         pyglet.font.add_file(font_path)
@@ -26,7 +29,7 @@ def _register_font():
 
 def load_font():
     _register_font()
-    return "Onion Pixel"
+    return FONT_NAME
 
 
 def draw_text(text, x, y, color=(255, 255, 255), size=8, scale=1.0, anchor_x="left", anchor_y="top"):

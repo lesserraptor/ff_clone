@@ -17,6 +17,8 @@ class SpriteAtlas:
         self.sprite_textures = {}
         self._bg_colors = {}
         self._sheet_filenames = {}
+        self._sprite_cache: dict[str, arcade.Sprite] = {}
+        self._sprite_list = arcade.SpriteList()
 
     def load_sheet(self, name: str, filename: str):
         path = os.path.join(self.assets_path, filename)
@@ -126,16 +128,19 @@ class SpriteAtlas:
         if sprite_id not in self.sprite_textures:
             return False
 
-        texture = self.sprite_textures[sprite_id]
-        sprite = arcade.Sprite()
-        sprite.texture = texture
+        if sprite_id not in self._sprite_cache:
+            sprite = arcade.Sprite()
+            sprite.texture = self.sprite_textures[sprite_id]
+            self._sprite_cache[sprite_id] = sprite
+
+        sprite = self._sprite_cache[sprite_id]
         sprite.center_x = x
         sprite.center_y = y
         sprite.scale = scale
 
-        sprite_list = arcade.SpriteList()
-        sprite_list.append(sprite)
-        sprite_list.draw(pixelated=True)
+        self._sprite_list.clear()
+        self._sprite_list.append(sprite)
+        self._sprite_list.draw(pixelated=True)
         return True
 
     def has_sprite(self, sprite_id: str) -> bool:

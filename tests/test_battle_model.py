@@ -3,6 +3,7 @@ import pytest
 from game.battle.dataclasses import Actor, ActionType, SpellType
 from game.battle.model import BattleModel
 from game.battle.engine import calc_damage
+from game.stats import apply_level_ups_to_actors
 
 
 # Minimal spell data for tests
@@ -232,7 +233,7 @@ class TestLevelUps:
     def test_level_up_on_exp_threshold(self, model):
         member = model.party[0]
         member.exp = member.exp_next  # Just at threshold
-        events = model.apply_level_ups()
+        events = apply_level_ups_to_actors(model.party)
         assert len(events) == 1  # 1 level up
         assert member.lvl == 2
         assert member.hp_max == 55  # +5
@@ -240,7 +241,7 @@ class TestLevelUps:
     def test_multiple_level_ups(self, model):
         member = model.party[0]
         member.exp = member.exp_next * 3  # Way past threshold
-        events = model.apply_level_ups()
+        events = apply_level_ups_to_actors(model.party)
         assert len(events) >= 1
         assert member.lvl >= 2
 
@@ -249,7 +250,7 @@ class TestLevelUps:
         member.exp = member.exp_next
         old_atk = member.atk
         old_def = member.def_
-        model.apply_level_ups()
+        apply_level_ups_to_actors(model.party)
         assert member.atk == old_atk + 2
         assert member.def_ == old_def + 1
         assert member.hp == member.hp_max  # Full heal on level up

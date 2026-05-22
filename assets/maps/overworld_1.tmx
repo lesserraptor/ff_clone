@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.11" orientation="orthogonal" renderorder="right-down" width="15" height="10" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="6">
+  <properties>
+    <property name="name" type="string" value="World Center" /></properties><tileset firstgid="1" source="../hometown_tileset.tsj" /><layer id="1" name="Tile Layer 1" width="15" height="10">
+    <data encoding="csv">1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,3,3,3,3,9,9,3,3,3,3,3,3,3,1,1,3,3,3,3,2,2,3,3,3,3,3,3,3,1,1,66,66,66,3,3,3,3,3,3,3,3,3,3,1,1,3,3,66,3,3,3,3,3,3,3,3,3,3,1,1,3,3,66,66,66,66,66,3,3,3,3,3,3,1,1,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,3,3,3,3,3,3,3,3,15,15,15,15,3,1,1,9,9,9,9,9,9,9,9,15,15,15,15,9,1</data></layer><objectgroup id="3" name="Exits">
+    <object id="1" x="16" y="80">
+      <properties>
+        <property name="dest_map" type="string" value="overworld_2" /><property name="dest_x" type="int" value="13" /><property name="dest_y" type="int" value="5" /><property name="direction" type="string" value="left" /></properties><point /></object><object id="2" x="208" y="80">
+      <properties>
+        <property name="dest_map" type="string" value="overworld_3" /><property name="dest_x" type="int" value="1" /><property name="dest_y" type="int" value="5" /><property name="direction" type="string" value="right" /></properties><point /></object><object id="3" x="112" y="144">
+      <properties>
+        <property name="dest_map" type="string" value="town_1" /><property name="dest_x" type="int" value="7" /><property name="dest_y" type="int" value="1" /><property name="direction" type="string" value="down" /></properties><point /></object><object id="4" x="96" y="144">
+      <properties>
+        <property name="dest_map" type="string" value="town_1" /><property name="dest_x" type="int" value="7" /><property name="dest_y" type="int" value="1" /><property name="direction" type="string" value="down" /></properties><point /></object><object id="5" x="80" y="32">
+      <properties>
+        <property name="dest_map" type="string" value="dungeon_1" /><property name="dest_x" type="int" value="7" /><property name="dest_y" type="int" value="8" /><property name="direction" type="string" value="up" /></properties><point /></object></objectgroup></map>

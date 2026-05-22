@@ -1,10 +1,7 @@
 # FF Clone Agent Instructions
 
 ## IMPORTANT - Workflow
-- ALWAYS ask the user before moving to the next phase
-- Do not proceed to Phase 2, 3, or 4 without explicit user approval
-- Wait for user confirmation after completing each phase
-- Do NOT mark phases as done in phases.md until you have confirmed with the user that they are satisfied with the implementation (this ensures continuity across sessions)
+- verify with the user whether a spec can be accepted as done or not
 
 ## Project Overview
 This is a Final Fantasy-style game in the style of the old Game Boy titles, using Python + arcade.
@@ -14,8 +11,6 @@ This is a Final Fantasy-style game in the style of the old Game Boy titles, usin
 - Base resolution: 240x160 (GBC), integer scaled 1x-4x
 - JSON for map/enemy/item/spell data
 - SQLite for save games (not yet implemented)
-
-**Current State**: Phase 3 (Battle System) complete
 
 **File Structure**:
 ```

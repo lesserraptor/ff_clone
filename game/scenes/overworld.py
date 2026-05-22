@@ -1,4 +1,4 @@
-from game.engine import register_scene
+from game.scene_registry import register_scene
 from game.scenes.overworld_states import OverworldModel, OverworldRenderer
 
 
@@ -8,7 +8,10 @@ class OverworldScene:
 
     def __init__(self, engine):
         self.engine = engine
-        self.model = OverworldModel(engine)
+        from game.scenes.overworld_states import load_maps, load_enemies
+        tile_defs, maps, scripts = load_maps()
+        enemy_data = load_enemies()
+        self.model = OverworldModel(engine, tile_defs, maps, scripts, enemy_data)
         self.renderer = OverworldRenderer()
 
     def update(self, dt):
@@ -38,6 +41,5 @@ class OverworldScene:
             self.model.load_map(event["dest_map"])
 
     def draw(self):
-        w, h = self.engine.get_size()
-        s = self.engine.get_scale()
-        self.renderer.draw(self.model, s, w, h)
+        ctx = self.engine.get_layout_context()
+        self.renderer.draw(self.model, ctx.scale, ctx.width, ctx.height)

@@ -3,9 +3,11 @@
 import time
 from abc import ABC, abstractmethod
 from pyglet.window import key
-from game.engine import get_item, calc_party_stats
+from game.data import get_item
+from game.stats import calc_party_stats
 from game.ui import COLORS, draw_cursor
 from game.sprites import get_sprite_atlas
+from game.scenes.menu_layout import get_menu_layout
 
 _sprite_atlas = get_sprite_atlas()
 
@@ -95,45 +97,46 @@ class MainMenuState(MenuState):
             self.engine.set_scene("overworld")
 
     def draw(self, w, h, scale):
+        L = get_menu_layout()
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(7 * scale)        # menu option text
-        FS2 = int(6 * scale)       # sub-text / stats
-        FS_SM = int(5 * scale)     # HP/MP numbers
+        FS = int(L.fonts.NORMAL7 * scale)        # menu option text
+        FS2 = int(L.fonts.NORMAL6 * scale)       # sub-text / stats
+        FS_SM = int(L.fonts.SMALL5 * scale)      # HP/MP numbers
 
         # ──── Screen / panel dimensions ────
-        SCREEN_W = 240 * scale     # full screen width
-        SCREEN_H = 160 * scale     # full screen height
-        MENU_W = 80 * scale        # left menu panel width
-        MENU_L = 0 * scale         # left edge of menu panel
-        PARTY_L = MENU_W           # left edge of party panel (= right edge of menu)
-        GOLD_H = 30 * scale        # gold bar height
-        GOLD_B = 0 * scale         # gold bar bottom
+        SCREEN_W = L.screen.WIDTH * scale        # full screen width
+        SCREEN_H = L.screen.HEIGHT * scale       # full screen height
+        MENU_W = L.main.MENU_W * scale           # left menu panel width
+        MENU_L = L.main.MENU_L * scale           # left edge of menu panel
+        PARTY_L = MENU_W                         # (= right edge of menu panel)
+        GOLD_H = L.main.GOLD_H * scale           # gold bar height
+        GOLD_B = L.main.GOLD_B * scale           # gold bar bottom
 
         # ──── Menu panel rows ────
-        MENU_ROW_1 = 146 * scale   # first option Y
-        MENU_ROW_GAP = 16 * scale  # vertical space between options
+        MENU_ROW_1 = L.main.MENU_ROW_1 * scale   # first option Y
+        MENU_ROW_GAP = L.main.MENU_ROW_GAP * scale
 
         # ──── Party panel rows ────
-        PARTY_ROW_1 = 146 * scale  # first party member Y
-        PARTY_ROW_GAP = 32 * scale # vertical space between members
+        PARTY_ROW_1 = L.main.PARTY_ROW_1 * scale # first party member Y
+        PARTY_ROW_GAP = L.main.PARTY_ROW_GAP * scale
 
         # ──── Party panel offsets ────
-        SPRITE_X_OFF = 24 * scale  # sprite X offset from panel left
-        NAME_X_OFF = 16 * scale    # name X offset from sprite (sprite_x + 16)
-        HP_Y_OFF = -16 * scale     # Y offset from row for HP/MP area
-        HP_CUR_Y_OFF = 5 * scale   # current HP number Y offset from hp_y
-        HP_MAX_Y_OFF = -5 * scale  # max HP number Y offset from hp_y
-        MP_COL_OFF = 64 * scale    # MP column X offset from name_x
-        CURSOR_PARTY_OFF = 4 * scale  # cursor X offset from party_l
+        SPRITE_X_OFF = L.main.SPRITE_X_OFF * scale
+        NAME_X_OFF = L.main.NAME_X_OFF * scale
+        HP_Y_OFF = L.main.HP_Y_OFF * scale
+        HP_CUR_Y_OFF = L.main.HP_CUR_Y_OFF * scale
+        HP_MAX_Y_OFF = L.main.HP_MAX_Y_OFF * scale
+        MP_COL_OFF = L.main.MP_COL_OFF * scale
+        CURSOR_PARTY_OFF = L.main.CURSOR_PARTY_OFF * scale
 
         # ──── Menu panel offsets ────
-        TEXT_OFF = 12 * scale      # menu text X offset from left
-        CURSOR_OFF = 4 * scale     # cursor X offset from left
+        TEXT_OFF = L.main.TEXT_OFF * scale
+        CURSOR_OFF = L.main.CURSOR_OFF * scale
 
         # ──── Gold bar ────
-        GOLD_TEXT_CX = MENU_W // 2  # gold text center X
-        GOLD_TEXT_CY = GOLD_H // 2  # gold text center Y
+        GOLD_TEXT_CX = MENU_W // 2
+        GOLD_TEXT_CY = GOLD_H // 2
 
         # ════════════════════════ DRAW ════════════════════════
         # ── Party list — right 2/3, full height ──
@@ -261,52 +264,53 @@ class ItemsMenuState(MenuState):
     # ── draw ─────────────────────────────────────────────
 
     def draw(self, w, h, scale):
+        L = get_menu_layout()
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(7 * scale)        # heading / overlay title text
-        FS2 = int(6 * scale)       # item names / sub-text
-        FS_SM = int(5 * scale)     # help text
-        FS_TITLE = int(8 * scale)  # "ITEMS" title
+        FS = int(L.fonts.NORMAL7 * scale)      # heading / overlay title
+        FS2 = int(L.fonts.NORMAL6 * scale)     # item names / sub-text
+        FS_SM = int(L.fonts.SMALL5 * scale)    # help text
+        FS_TITLE = int(L.fonts.TITLE8 * scale) # "ITEMS" title
 
         # ──── Items panel ────
-        PANEL_L = 40 * scale       # left edge of items panel
-        PANEL_R = 200 * scale      # right edge of items panel
-        PANEL_B = 0 * scale        # bottom edge of items panel
-        PANEL_T = 160 * scale      # top edge of items panel
+        PANEL_L = L.items.PANEL_L * scale
+        PANEL_R = L.items.PANEL_R * scale
+        PANEL_B = L.items.PANEL_B * scale
+        PANEL_T = L.items.PANEL_T * scale
 
         # ──── Title ────
-        TITLE_X = 120 * scale      # title center X
-        TITLE_Y = 152 * scale      # title Y
+        TITLE_X = L.items.TITLE_X * scale
+        TITLE_Y = L.items.TITLE_Y * scale
 
         # ──── Empty state ────
-        EMPTY_X = 120 * scale      # "No items" center X
-        EMPTY_Y = 80 * scale       # "No items" center Y
+        EMPTY_X = L.items.EMPTY_X * scale
+        EMPTY_Y = L.items.EMPTY_Y * scale
         EMPTY_COLOR = (150, 150, 150)
 
         # ──── Item rows ────
-        ITEM_ROW_1 = 140 * scale   # first item Y
-        ITEM_GAP = 17 * scale      # gap between items
-        ITEM_CURSOR_OFF = 8 * scale   # cursor X offset from panel left
-        ITEM_TEXT_OFF = 16 * scale    # text X offset from panel left
-        ITEM_MAX_VISIBLE = 8       # max items shown
+        ITEM_ROW_1 = L.items.ITEM_ROW_1 * scale
+        ITEM_GAP = L.items.ITEM_GAP * scale
+        ITEM_CURSOR_OFF = L.items.ITEM_CURSOR_OFF * scale
+        ITEM_TEXT_OFF = L.items.ITEM_TEXT_OFF * scale
+        ITEM_MAX_VISIBLE = L.items.ITEM_MAX_VISIBLE
 
         # ──── Help text ────
-        HELP_X = 120 * scale       # help text center X
-        HELP_Y = 8 * scale         # help text Y
+        HELP_X = L.items.HELP_X * scale
+        HELP_Y = L.items.HELP_Y * scale
         HELP_COLOR = (150, 150, 150)
 
         # ──── Targeting overlay ────
-        OL_L = 50 * scale          # overlay left edge
-        OL_R = 190 * scale         # overlay right edge
-        OL_B = 24 * scale          # overlay bottom
-        OL_T = 120 * scale         # overlay top
-        OL_TITLE_OFF = -10 * scale # overlay title Y offset from top (ol_t + offset)
-        OL_FIRST_Y_OFF = -28 * scale  # first target Y offset from ol_t
-        OL_TARGET_GAP = 18 * scale    # gap between target rows
-        OL_CURSOR_OFF = 8 * scale     # cursor X offset from ol_l
-        OL_NAME_OFF = 16 * scale      # name X offset from ol_l
-        OL_HP_OFF = 64 * scale        # HP column X offset from ol_l
-        OL_Y_ADJ = 3 * scale          # small Y adjustment for text alignment
+        OL_L = L.items.OL_L * scale
+        OL_R = L.items.OL_R * scale
+        OL_B = L.items.OL_B * scale
+        OL_T = L.items.OL_T * scale
+        OL_TITLE_OFF = L.items.OL_TITLE_OFF * scale
+        OL_FIRST_Y_OFF = L.items.OL_FIRST_Y_OFF * scale
+        OL_TARGET_GAP = L.items.OL_TARGET_GAP * scale
+        OL_CURSOR_OFF = L.items.OL_CURSOR_OFF * scale
+        OL_NAME_OFF = L.items.OL_NAME_OFF * scale
+        OL_HP_OFF = L.items.OL_HP_OFF * scale
+        OL_Y_ADJ = L.items.OL_Y_ADJ * scale
 
         # ════════════════════════ DRAW ════════════════════════
         # ── Items list panel ──
@@ -384,44 +388,45 @@ class StatusMenuState(MenuState):
             self.menu.set_state("main")
 
     def draw(self, w, h, scale):
+        L = get_menu_layout()
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(7 * scale)        # names / level
-        FS2 = int(6 * scale)       # stats
-        FS_TITLE = int(8 * scale)  # "STATUS" title
-        FS_SM = int(5 * scale)     # help text
+        FS = int(L.fonts.NORMAL7 * scale)      # names / level
+        FS2 = int(L.fonts.NORMAL6 * scale)     # stats
+        FS_TITLE = int(L.fonts.TITLE8 * scale) # "STATUS" title
+        FS_SM = int(L.fonts.SMALL5 * scale)    # help text
 
         # ──── Panel dimensions ────
-        PANEL_L = 4 * scale        # left edge of each member panel
-        PANEL_R = 236 * scale      # right edge of each member panel
-        PANEL_H = 34 * scale       # height of each member panel
-        PANEL_GAP = 2 * scale      # gap between panels
+        PANEL_L = L.status.PANEL_L * scale
+        PANEL_R = L.status.PANEL_R * scale
+        PANEL_H = L.status.PANEL_H * scale
+        PANEL_GAP = L.status.PANEL_GAP * scale
 
         # ──── Title ────
-        TITLE_X = 120 * scale      # title center X
-        TITLE_Y = 155 * scale      # title Y
+        TITLE_X = L.status.TITLE_X * scale
+        TITLE_Y = L.status.TITLE_Y * scale
 
         # ──── First panel bottom ────
-        FIRST_PB = 14 * scale      # first panel bottom edge
+        FIRST_PB = L.status.FIRST_PB * scale
 
         # ──── Within each member panel ────
-        SPRITE_OFF = 12 * scale    # sprite X offset from panel left
-        SPRITE_Y_OFF = 2 * scale   # sprite Y offset above row center
-        TEXT_X_OFF = 24 * scale    # name text X offset from panel left
+        SPRITE_OFF = L.status.SPRITE_OFF * scale
+        SPRITE_Y_OFF = L.status.SPRITE_Y_OFF * scale
+        TEXT_X_OFF = L.status.TEXT_X_OFF * scale
 
-        # ──── Row Y offsets from panel vertical center (row_cy) ────
-        R1_OFF = 12 * scale        # row 1 (name / HP / ATK) — above center
-        R2_OFF = 4 * scale         # row 2 (HP max / DEF)
-        R3_OFF = -4 * scale        # row 3 (MP / MAG)
-        R4_OFF = -12 * scale       # row 4 (MP max / SPD)
+        # ──── Row Y offsets from panel vertical center ────
+        R1_OFF = L.status.R1_OFF * scale
+        R2_OFF = L.status.R2_OFF * scale
+        R3_OFF = L.status.R3_OFF * scale
+        R4_OFF = L.status.R4_OFF * scale
 
         # ──── Column X offsets from text start (tx) ────
-        COL1_OFF = 64 * scale      # HP/MP column
-        COL2_OFF = 124 * scale     # ATK/DEF/MAG/SPD column
+        COL1_OFF = L.status.COL1_OFF * scale
+        COL2_OFF = L.status.COL2_OFF * scale
 
         # ──── Help text ────
-        HELP_X = 120 * scale       # help center X
-        HELP_Y = 4 * scale         # help Y
+        HELP_X = L.status.HELP_X * scale
+        HELP_Y = L.status.HELP_Y * scale
         HELP_COLOR = (150, 150, 150)
 
         # ════════════════════════ DRAW ════════════════════════
@@ -499,37 +504,38 @@ class EquipCharSelectState(MenuState):
             self.menu.set_state("main")
 
     def draw(self, w, h, scale):
+        L = get_menu_layout()
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(7 * scale)        # character names
-        FS2 = int(6 * scale)       # (unused currently)
-        FS_SM = int(5 * scale)     # HP numbers
-        FS_TITLE = int(8 * scale)  # title
-        FS_HELP = int(5 * scale)   # help text
+        FS = int(L.fonts.NORMAL7 * scale)      # character names
+        FS2 = int(L.fonts.NORMAL6 * scale)     # (unused currently)
+        FS_SM = int(L.fonts.SMALL5 * scale)    # HP numbers
+        FS_TITLE = int(L.fonts.TITLE8 * scale) # title
+        FS_HELP = int(L.fonts.SMALL5 * scale)  # help text
 
         # ──── Panel / screen dimensions ────
-        SCREEN_R = 240 * scale     # right edge of full screen
-        PARTY_L = 40 * scale       # left edge of party list panel
-        PANEL_B = 0 * scale        # panel bottom
-        PANEL_T = 150 * scale      # panel top (leaves room for help)
+        SCREEN_R = L.screen.RIGHT * scale
+        PARTY_L = L.equip_char.PARTY_L * scale
+        PANEL_B = L.equip_char.PANEL_B * scale
+        PANEL_T = L.equip_char.PANEL_T * scale
 
         # ──── Title ────
-        TITLE_X = 120 * scale      # title center X
-        TITLE_Y = 155 * scale      # title Y
+        TITLE_X = L.equip_char.TITLE_X * scale
+        TITLE_Y = L.equip_char.TITLE_Y * scale
 
         # ──── Party rows ────
-        ROW_1 = 138 * scale        # first member Y
-        ROW_GAP = 32 * scale       # gap between rows
-        SPRITE_OFF = 24 * scale    # sprite X offset from party_l
-        NAME_OFF = 16 * scale      # name X offset from sprite (sprite_x + 16)
-        CURSOR_OFF = 4 * scale     # cursor X offset from party_l
-        HP_Y_OFF = -16 * scale     # Y offset from row for HP area
-        HP_CUR_OFF = 5 * scale     # current HP Y offset from hp_y
-        HP_MAX_OFF = -5 * scale    # max HP Y offset from hp_y
+        ROW_1 = L.equip_char.ROW_1 * scale
+        ROW_GAP = L.equip_char.ROW_GAP * scale
+        SPRITE_OFF = L.equip_char.SPRITE_OFF * scale
+        NAME_OFF = L.equip_char.NAME_OFF * scale
+        CURSOR_OFF = L.equip_char.CURSOR_OFF * scale
+        HP_Y_OFF = L.equip_char.HP_Y_OFF * scale
+        HP_CUR_OFF = L.equip_char.HP_CUR_OFF * scale
+        HP_MAX_OFF = L.equip_char.HP_MAX_OFF * scale
 
         # ──── Help text ────
-        HELP_X = 120 * scale       # help center X
-        HELP_Y = 8 * scale         # help Y
+        HELP_X = L.equip_char.HELP_X * scale
+        HELP_Y = L.equip_char.HELP_Y * scale
         HELP_COLOR = (150, 150, 150)
 
         # ════════════════════════ DRAW ════════════════════════
@@ -595,7 +601,7 @@ class EquipDetailState(MenuState):
         """Return (atk_bonus, def_bonus, mag_bonus) for an item id or None."""
         if not item_id:
             return (0, 0, 0)
-        from game.engine import WEAPON_DATA, ARMOR_DATA
+        from game.data import WEAPON_DATA, ARMOR_DATA
         w = WEAPON_DATA.get(item_id)
         if w:
             return (w.get("atk", 0), 0, w.get("mag", 0))
@@ -695,22 +701,24 @@ class EquipDetailState(MenuState):
 
     def _draw_panel1_stats(self, scale):
         """Panel 1 — character stats (left 1/2, bottom 3/4)."""
+        L = get_menu_layout()
+        p1 = L.equip_detail.panel1
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(6 * scale)        # stat label text
+        FS = int(L.fonts.NORMAL6 * scale)  # stat label text
 
         # ──── Panel box ────
-        BOX_L = 0 * scale          # left edge
-        BOX_R = 120 * scale        # right edge
-        BOX_B = 0 * scale          # bottom edge
-        BOX_T = 120 * scale        # top edge
+        BOX_L = p1.BOX_L * scale
+        BOX_R = p1.BOX_R * scale
+        BOX_B = p1.BOX_B * scale
+        BOX_T = p1.BOX_T * scale
 
         # ──── Stat row positions ────
-        TEXT_X = 8 * scale         # X offset for all stat text
-        ROW_1_Y = 104 * scale      # STR row
-        ROW_2_Y = 92 * scale       # DEF row
-        ROW_3_Y = 80 * scale       # AGI row
-        ROW_4_Y = 68 * scale       # MAG row
+        TEXT_X = p1.TEXT_X * scale
+        ROW_1_Y = p1.ROW_1_Y * scale
+        ROW_2_Y = p1.ROW_2_Y * scale
+        ROW_3_Y = p1.ROW_3_Y * scale
+        ROW_4_Y = p1.ROW_4_Y * scale
 
         # ════════════════════════ DRAW ════════════════════════
         member = self._member
@@ -737,24 +745,26 @@ class EquipDetailState(MenuState):
 
     def _draw_panel2_identity(self, scale):
         """Panel 2 — character identifier (left 1/3, top 1/4)."""
+        L = get_menu_layout()
+        p2 = L.equip_detail.panel2
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(6 * scale)        # character name
-        FS_SM = int(4 * scale)     # HP numbers
+        FS = int(L.fonts.NORMAL6 * scale)  # character name
+        FS_SM = int(L.fonts.SMALL * scale) # HP numbers
 
         # ──── Panel box ────
-        BOX_L = 0 * scale          # left edge
-        BOX_R = 80 * scale         # right edge
-        BOX_B = 120 * scale        # bottom edge
-        BOX_T = 160 * scale        # top edge
+        BOX_L = p2.BOX_L * scale
+        BOX_R = p2.BOX_R * scale
+        BOX_B = p2.BOX_B * scale
+        BOX_T = p2.BOX_T * scale
 
         # ──── Elements ────
-        SPRITE_X = 16 * scale      # sprite X
-        SPRITE_Y = 140 * scale     # sprite Y
-        TEXT_X = 26 * scale        # name / HP text X
-        NAME_Y = 150 * scale       # name / sprite Y
-        HP_CUR_Y = 142 * scale     # current HP Y
-        HP_MAX_Y = 134 * scale     # max HP Y
+        SPRITE_X = p2.SPRITE_X * scale
+        SPRITE_Y = p2.SPRITE_Y * scale
+        TEXT_X = p2.TEXT_X * scale
+        NAME_Y = p2.NAME_Y * scale
+        HP_CUR_Y = p2.HP_CUR_Y * scale
+        HP_MAX_Y = p2.HP_MAX_Y * scale
 
         # ════════════════════════ DRAW ════════════════════════
         member = self._member
@@ -766,24 +776,26 @@ class EquipDetailState(MenuState):
 
     def _draw_panel3_equipped(self, scale):
         """Panel 3 — currently equipped slots (right 2/3, full height)."""
+        L = get_menu_layout()
+        p3 = L.equip_detail.panel3
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(6 * scale)        # slot name
-        FS_SM = int(4 * scale)     # equipped item name
+        FS = int(L.fonts.NORMAL6 * scale)    # slot name
+        FS_SM = int(L.fonts.SMALL * scale)   # equipped item name
 
         # ──── Panel box ────
-        BOX_L = 80 * scale         # left edge
-        BOX_R = 240 * scale        # right edge
-        BOX_B = 0 * scale          # bottom edge
-        BOX_T = 160 * scale        # top edge — full height
+        BOX_L = p3.BOX_L * scale
+        BOX_R = p3.BOX_R * scale
+        BOX_B = p3.BOX_B * scale
+        BOX_T = p3.BOX_T * scale
 
         # ──── Slot rows ────
-        ROW_1 = 148 * scale        # first slot Y (more room with full height)
-        ROW_GAP = 22 * scale       # gap between slot rows
-        CURSOR_X = 88 * scale      # cursor X
-        TEXT_X = 96 * scale        # text X
-        NAME_Y_OFF = 5 * scale     # slot name Y offset from row Y
-        ITEM_Y_OFF = -5 * scale    # item name Y offset from row Y
+        ROW_1 = p3.ROW_1 * scale
+        ROW_GAP = p3.ROW_GAP * scale
+        CURSOR_X = p3.CURSOR_X * scale
+        TEXT_X = p3.TEXT_X * scale
+        NAME_Y_OFF = p3.NAME_Y_OFF * scale
+        ITEM_Y_OFF = p3.ITEM_Y_OFF * scale
 
         # ════════════════════════ DRAW ════════════════════════
         member = self._member
@@ -806,28 +818,30 @@ class EquipDetailState(MenuState):
 
     def _draw_items_overlay(self, scale):
         """Floating overlay — equipable item list (on top of panel 3)."""
+        L = get_menu_layout()
+        ol = L.equip_detail.overlay
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(6 * scale)        # header (slot name)
-        FS_SM = int(5 * scale)     # item name + bonuses
+        FS = int(L.fonts.NORMAL6 * scale)    # header (slot name)
+        FS_SM = int(L.fonts.SMALL5 * scale)  # item name + bonuses
 
         # ──── Floating box (inset) ────
-        BOX_L = 84 * scale
-        BOX_R = 238 * scale
-        BOX_B = 16 * scale
-        BOX_T = 152 * scale
-        OVERLAY_FILL = (248, 248, 248)  # slightly lighter than panel (232,232,232)
+        BOX_L = ol.BOX_L * scale
+        BOX_R = ol.BOX_R * scale
+        BOX_B = ol.BOX_B * scale
+        BOX_T = ol.BOX_T * scale
+        OVERLAY_FILL = (248, 248, 248)
 
         # ──── Header (slot name) ────
-        HEADER_X = 92 * scale
-        HEADER_Y = 144 * scale
+        HEADER_X = ol.HEADER_X * scale
+        HEADER_Y = ol.HEADER_Y * scale
 
         # ──── Item rows ────
-        ROW_1 = 132 * scale
-        ROW_GAP = 14 * scale
-        MAX_VISIBLE = 8
-        CURSOR_X = 92 * scale
-        TEXT_X = 100 * scale
+        ROW_1 = ol.ROW_1 * scale
+        ROW_GAP = ol.ROW_GAP * scale
+        MAX_VISIBLE = ol.MAX_VISIBLE
+        CURSOR_X = ol.CURSOR_X * scale
+        TEXT_X = ol.TEXT_X * scale
 
         # ════════════════════════ DRAW ════════════════════════
         self.draw_box(BOX_L, BOX_R, BOX_B, BOX_T, scale, fill=OVERLAY_FILL)
@@ -859,14 +873,15 @@ class EquipDetailState(MenuState):
             self.draw_text(f"{item_def['name']} {stat_str}", TEXT_X, y, c, FS_SM)
 
     def draw(self, w, h, scale):
+        L = get_menu_layout()
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS_HELP = int(5 * scale)   # help text
+        FS_HELP = int(L.fonts.SMALL5 * scale)
         HELP_COLOR = (150, 150, 150)
 
         # ──── Help text ────
-        HELP_X = 160 * scale       # help center X
-        HELP_Y = 6 * scale         # help Y
+        HELP_X = L.equip_detail.HELP_X * scale
+        HELP_Y = L.equip_detail.HELP_Y * scale
 
         # ════════════════════════ DRAW ════════════════════════
         # Draw order: Panel 1 → Panel 2 → Panel 3 → Items overlay (front)
@@ -912,28 +927,29 @@ class SaveMenuState(MenuState):
 
     def draw(self, w, h, scale):
         self._load_saves()
+        L = get_menu_layout()
 
         # ══════════════════════════ LAYOUT ══════════════════════════
         # ──── Font sizes ────
-        FS = int(7 * scale)        # slot name
-        FS2 = int(6 * scale)       # play time text
-        FS_TITLE = int(8 * scale)  # "SAVE GAME" title
-        FS_HELP = int(5 * scale)   # help text
+        FS = int(L.fonts.NORMAL7 * scale)      # slot name
+        FS2 = int(L.fonts.NORMAL6 * scale)     # play time text
+        FS_TITLE = int(L.fonts.TITLE8 * scale) # "SAVE GAME" title
+        FS_HELP = int(L.fonts.SMALL5 * scale)  # help text
         HELP_COLOR = (150, 150, 150)
 
         # ──── Title ────
-        TITLE_X = 120 * scale      # title center X
-        TITLE_Y = 155 * scale      # title Y
+        TITLE_X = L.save.TITLE_X * scale
+        TITLE_Y = L.save.TITLE_Y * scale
 
         # ──── Slots ────
-        SCREEN_L = 0 * scale       # left edge of slots
-        SCREEN_R = 240 * scale     # right edge of slots
-        SLOT_HEIGHTS = [53, 54, 53]  # heights of the 3 slots (sum = 160)
-        TEXT_INDENT = 16 * scale   # text X indent from slot left
+        SCREEN_L = L.save.SCREEN_L * scale
+        SCREEN_R = L.save.SCREEN_R * scale
+        SLOT_HEIGHTS = list(L.save.SLOT_HEIGHTS)
+        TEXT_INDENT = L.save.TEXT_INDENT * scale
 
         # ──── Help text ────
-        HELP_X = 120 * scale       # help center X
-        HELP_Y = 4 * scale         # help Y
+        HELP_X = L.save.HELP_X * scale
+        HELP_Y = L.save.HELP_Y * scale
 
         # ════════════════════════ DRAW ════════════════════════
         title_t = self.text(

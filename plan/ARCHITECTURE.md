@@ -35,11 +35,12 @@ non-native scales.
 |---------------|--------------------------------------------------|
 | Language      | Python 3.12+                                     |
 | Game library  | `arcade` (built on pyglet / OpenGL)              |
+| Map parser    | `pytiled_parser` — parses Tiled .tmx/.tsj files  |
 | Image I/O     | `PIL` (Pillow) — sprite cropping, background removal, tile slicing |
 | Font          | `pyglet.font` — registers Onion Pixel OTF before window creation |
 | Persistence   | `sqlite3` — 5-slot save system                   |
-| Testing       | `pytest` — 4 test files, 46 tests                |
-| Data format   | JSON — enemies, items, spells, sprites, maps, UI borders |
+| Testing       | `pytest` — 5 test files, 54 tests                |
+| Data format   | JSON + Tiled .tmx/.tsj — enemies, items, spells, sprites, tile_defs & scripts (JSON), map grids / NPCs / exits (.tmx) |
 
 There is no `pyproject.toml`; dependencies are managed via the
 project's `.venv`.
@@ -158,6 +159,8 @@ ff_clone/
 │   ├── save.py                # SQLite save/load — 5 slots
 │   ├── tiles.py               # Tileset — slices PNG into 16×16 GID textures
 │   ├── tilemap.py             # Tilemap — renders GID grid with Y-flip
+│   ├── tiled_map_loader.py    # Loads .tmx files via pytiled_parser,
+│   │                          #   returns compat dict (gids, npcs, exits)
 │   │
 │   ├── scenes/
 │   │   ├── __init__.py        # empty
@@ -193,6 +196,10 @@ ff_clone/
 │   ├── onion-pixel.otf        # Primary game font
 │   ├── onion-pixel.ttf        # TTF fallback
 │   ├── *_tileset*.png         # Tileset spritesheets
+│   ├── hometown_tileset.tsj  # Tiled JSON tileset — 10×9 grid of 16×16 tiles
+│   │                          #   references extracted_hometown_tileset_rgb.png
+│   ├── maps/                  # 5 .tmx map files (overworld_1/2/3, town_1,
+│   │                          #   dungeon_1)
 │   ├── Game Boy _ GBC - ... - Characters.png  # Character sprite sheet
 │   ├── Game Boy _ GBC - ... - Enemies.png     # Enemy sprite sheet
 │   └── Game Boy _ GBC - ... - Hometown.png    # Background reference
@@ -205,13 +212,18 @@ ff_clone/
 │   ├── test_party_member.py   # 11 tests — PartyMember creation, damage,
 │   │                          #   heal, serialisation, legacy fallback
 │   ├── test_speed_queue.py    # 7 tests — ordering, insertion, empty
-│   └── test_battle_model.py   # 22 tests — model creation, actions,
-│                              #   magic, victory/defeat, death, level-ups
+│   ├── test_battle_model.py   # 22 tests — model creation, actions,
+│   │                          #   magic, victory/defeat, death, level-ups
+│   └── test_tile_map.py       # 8 tests — Tiled map file existence, loading,
+│                              #   GID grid, NPCs, exits, error handling,
+│                              #   overworld model integration, gid_to_tile_id
 │
 ├── tools/
 │   ├── sprite_picker.py       # Interactive sprite region selector
-│   └── export_frames.py       # Export sprite frames as individual PNGs
-│   └── split_char_frames.py   # Split _all sprite rows into individual frames
+│   ├── export_frames.py       # Export sprite frames as individual PNGs
+│   ├── split_char_frames.py   # Split _all sprite rows into individual frames
+│   └── convert_to_tiled.py    # Converts maps_converted.json → .tmx + .tsj
+│                              #   CSV tile layers, object layers for NPCs/exits
 │
 └── scripts/
     └── convert_maps.py        # Tile-ID to GID converter + PNG preview
@@ -246,8 +258,14 @@ Split into two classes:
 
 **OverworldModel** — pure state and logic:
 
-- Loads maps from `maps_converted.json` (tile defs, GID grids, NPCs,
-  exits, scripts)
+- Dual-source map loading via `load_maps()`:
+  - Tile definitions (`tile_defs`), dialog scripts, and original logical
+    tile grids come from `data/maps.json`
+  - GID grids, NPCs, and exits come from `.tmx` files in `assets/maps/`,
+    parsed via `game/tiled_map_loader.load_tiled_map()` using
+    `pytiled_parser`
+  - The two sources are merged per map: logical `tiles` from `maps.json`
+    override the lossy GID→tile_id reverse mapping from the .tmx data
 - Tile-based movement with **0.15-second move cooldown** to prevent
   tile-hopping
 - Walk animation: 2-frame cycle (`walk_frame` 0 or 1) based on
@@ -500,17 +518,43 @@ generated at load time.
 
 ### 6.5 Maps
 
-`maps.json` contains:
+Maps use a **dual-format** system. Static metadata lives in JSON
+while spatial data (grids, objects) lives in Tiled .tmx files.
+
+**`data/maps.json`** contains:
 
 - `tile_defs` — maps tile IDs to `walkable`, `name`, `color`
 - `maps` — each with `id`, `name`, `width`, `height`,
   `tiles` (2D int grid), `npcs`, `exits`, `scripts`
 - `scripts` — dialog arrays keyed by script ID
 
-`maps_converted.json` is the output of `convert_maps.py` — identical
-to `maps.json` but with an additional `gids` grid per map (GID
-numbers for the pixel tileset). Overworld maps get tree-expansion
+**`data/maps_converted.json`** is the output of `convert_maps.py` —
+identical to `maps.json` but with an additional `gids` grid per map
+(GID numbers for the pixel tileset). Overworld maps get tree-expansion
 logic; non-overworld maps get a simple 1:1 ID→GID mapping.
+
+**`assets/maps/*.tmx`** — Tiled XML map files (5 total:
+`overworld_1`, `overworld_2`, `overworld_3`, `town_1`, `dungeon_1`).
+Each contains:
+- A **CSV-encoded tile layer** with GID values
+- An **NPCs object layer** — point objects with custom properties
+  (`name`, `script_id`)
+- An **Exits object layer** — point objects with custom properties
+  (`dest_map`, `dest_x`, `dest_y`, `direction`)
+
+**`assets/hometown_tileset.tsj`** — Tiled JSON tileset definition.
+References `assets/extracted_hometown_tileset_rgb.png` with a 10×9
+grid of 16×16 tiles (90 tiles total). Each tile has a `walkable`
+boolean custom property. Generated by `tools/convert_to_tiled.py`.
+
+**Loading pipeline** (`game/scenes/overworld_states.py:load_maps()`):
+1. Load `tile_defs` and `scripts` from `data/maps.json`
+2. For each `.tmx` in `assets/maps/`, call
+   `game/tiled_map_loader.load_tiled_map()` to get GID grid, NPCs,
+   exits
+3. Merge: logical `tiles` grid from `maps.json` overrides the
+   lossy GID→tile_id reverse mapping (tree expansion in GIDs
+   cannot be reversed perfectly)
 
 ### 6.6 ui_borders.json
 
@@ -651,7 +695,7 @@ registration is guarded by a `_font_registered` flag.
 
 ## 10. Tests
 
-4 test files, 46 tests total, using `pytest`.
+5 test files, 54 tests total, using `pytest`.
 
 ### conftest.py
 
@@ -683,6 +727,19 @@ attack damage, enemy attack damage, minimum damage, attack spell,
 heal spell, victory/defeat detection, both-dead edge case, kill
 enemy triggers rewards, death message, level-ups (single, multiple,
 stats increase).
+
+### test_tile_map.py (8 tests)
+
+Tests Tiled map loading and conversion:
+- `.tmx` file existence for all maps in `maps_converted.json`
+- Basic load: width, height, name, tile_size, id
+- GID grid dimensions and value types
+- NPC parsing (town_1 has King at (4, 2) with script `king_intro`)
+- Exit parsing (overworld_1 exits to overworld_2 at (1, 5))
+- `FileNotFoundError` on missing .tmx
+- OverworldModel integration: `load_maps()` returns merged data from
+  both .tmx and maps.json sources
+- `gid_to_tile_id()` reverse mapping covers all used GIDs
 
 ---
 
@@ -726,20 +783,41 @@ with proper names (`dn_0`, `dn_1`, `rt_0`, `rt_1`, `up_0`, `up_1`)
 and auto-generates mirrored left frames (`lf_0`, `lf_1` via
 `mirror_of`).
 
+### convert_to_tiled.py
+
+Converts `data/maps_converted.json` to Tiled .tmx and .tsj formats
+for editing in the Tiled map editor.
+
+- **Tileset output** (`assets/hometown_tileset.tsj`): JSON tileset with
+  `walkable` bool custom property per tile (90 tiles, 10×9 16×16 grid)
+- **Map output** (`assets/maps/<map_id>.tmx`): Tiled XML map per map
+  with:
+  - CSV-encoded tile layer (single-line comma-separated GIDs — required
+    by `pytiled_parser` to avoid multi-line parse issues)
+  - `NPCs` object layer: point objects with `name` and `script_id`
+    custom properties
+  - `Exits` object layer: point objects with `dest_map`, `dest_x`,
+    `dest_y`, `direction` custom properties
+- Regenerates all 5 maps from the converted JSON source
+
+Run via `python3 tools/convert_to_tiled.py`.
+
 ---
 
 ## 12. Assets
 
 Located in `assets/`:
 
-| File | Purpose |
-|------|---------|
+| File / Directory | Purpose |
+|------------------|---------|
 | `onion-pixel.otf` | Primary game font (registered with pyglet) |
 | `onion-pixel.ttf` | TTF variant of same font |
 | `extracted_hometown_tileset.png` | Tileset (10×9 grid of 16×16 tiles) |
 | `extracted_hometown_tileset_rgb.png` | RGB version of same tileset |
 | `overworld_pixel_tileset.png` | Alternative overworld tileset |
 | `overworld_placeholder_tileset.png` | Placeholder tileset |
+| `hometown_tileset.tsj` | Tiled JSON tileset — 90 tiles, 10×9 grid, `walkable` per-tile property |
+| `maps/` | 5 `.tmx` files: `overworld_1`, `overworld_2`, `overworld_3`, `town_1`, `dungeon_1` |
 | `Game Boy _ GBC - ... - Characters.png` | Character sprite sheet |
 | `Game Boy _ GBC - ... - Enemies.png` | Enemy sprite sheet |
 | `Game Boy _ GBC - ... - Hometown.png` | Background reference image |
@@ -893,3 +971,30 @@ back to engine PartyMember list via `actor_to_dict()` →
 `PartyMember.from_dict()`. This two-step conversion ensures the
 engine's party reflects combat outcomes (HP changes, level-ups,
 death status).
+
+### Tiled Y-Axis Convention Matches Y-Flip
+
+Tiled uses a Cartesian Y-axis (row 0 = bottom). The overworld
+renderer applies a Y-flip (`map_h - 1 - ty`) so that row 0 = top,
+matching the tile grid convention used throughout the rest of the
+codebase. The `load_tiled_map()` function reads raw tile
+coordinates from Tiled object layers and converts them to the same
+Y-flipped coordinate space as the GID grid.
+
+### Dual-Source Map Load: tile_defs/Scripts vs Grid/NPC/Exits
+
+`load_maps()` in `overworld_states.py` merges data from two
+independent sources:
+
+1. **`data/maps.json`** — provides `tile_defs` (walkability, names,
+   colours), dialog `scripts`, and the original logical `tiles`
+   grid
+2. **`assets/maps/*.tmx`** — provides the visual `gids` grid for
+   rendering, plus `npcs` and `exits` as object layers
+
+The logical `tiles` grid from `maps.json` overrides the
+GID→tile_id reverse mapping calculated inside
+`tiled_map_loader.py`. This is necessary because the
+`convert_maps.py` tree-expansion step collapses multiple GIDs into
+a single logical tile ID, and the reverse mapping in
+`_GID_TO_TILE_ID` cannot perfectly recover the pre-expansion IDs.
